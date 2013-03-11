@@ -1,0 +1,7 @@
+asymmetricfs
+coverage
+coverage.info
+*.d
+*.gcda
+*.gcno
+*.o
