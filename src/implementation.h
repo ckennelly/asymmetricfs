@@ -20,7 +20,6 @@
  */
 
 #include <boost/thread/mutex.hpp>
-#include <boost/utility.hpp>
 #define _FILE_OFFSET_BITS 64
 #define FUSE_USE_VERSION 29
 #include <fuse.h>
@@ -119,6 +118,9 @@ private:
     int truncatefd(fd_t fd, off_t offset);
 
     int make_rdwr(int flags) const;
+
+    asymmetricfs(const asymmetricfs &) = delete;
+    const asymmetricfs & operator=(const asymmetricfs &) = delete;
 };
 
 #endif // __ASYMMETRICFS__IMPLEMENTATION_H__

@@ -19,9 +19,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/utility.hpp>
-
-class subprocess : boost::noncopyable {
+class subprocess {
 public:
     /**
      * file specifies a command to run (via execvp) and its arguments in argv.
@@ -68,6 +66,9 @@ private:
 
     bool out_owned_;
     int out_;
+
+    subprocess(const subprocess &) = delete;
+    const subprocess & operator=(const subprocess &) = delete;
 };
 
 #endif // __ASYMMETRICFS__SUBPROCESS_H__

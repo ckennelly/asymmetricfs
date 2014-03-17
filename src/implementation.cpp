@@ -25,7 +25,6 @@ namespace std { class type_info; }
 #include <sys/types.h>
 #include <attr/xattr.h>
 #include <boost/thread/locks.hpp>
-#include <boost/utility.hpp>
 #include <cassert>
 #include <cstdlib>
 #include <dirent.h>
@@ -56,7 +55,7 @@ int asymmetricfs::make_rdwr(int flags) const {
     }
 }
 
-class asymmetricfs::internal : boost::noncopyable {
+class asymmetricfs::internal {
 public:
     internal(const RecipientList & recipients);
     ~internal();
@@ -78,6 +77,9 @@ public:
 
     int close();
 protected:
+    internal(const internal &) = delete;
+    const internal & operator=(const internal &) = delete;
+
     bool open_;
     const RecipientList & recipients_;
 };

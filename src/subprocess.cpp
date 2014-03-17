@@ -21,6 +21,7 @@
 #include "subprocess.h"
 #include <sys/select.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 subprocess::subprocess(int fd_in, int fd_out, const char *file,
         char * const argv[]) : finished_(false) {
