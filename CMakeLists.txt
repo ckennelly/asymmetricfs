@@ -7,7 +7,7 @@ FIND_PACKAGE(Boost REQUIRED program_options system thread)
 FIND_LIBRARY(FUSE "fuse")
 
 # Warnings
-SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-declarations -Wredundant-decls -Winline -Wno-long-long -Wuninitialized -Wconversion -Werror")
+SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wno-long-long -Wuninitialized -Wconversion -Werror")
 SET(CMAKE_CXX_FLAGS "${WARNINGS} -Wabi -Wnon-virtual-dtor -g")
 
 # C++11 support
@@ -20,6 +20,13 @@ ELSEIF(USE0xFLAG)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 ELSE()
     MESSAGE(ERROR "C++0x/C++11 support is required.")
+ENDIF()
+
+# Valgrind support, for annotations.
+INCLUDE(CheckIncludeFileCXX)
+CHECK_INCLUDE_FILE_CXX("valgrind/memcheck.h" HAS_VALGRIND)
+IF (HAS_VALGRIND)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAS_VALGRIND")
 ENDIF()
 
 # Build targets

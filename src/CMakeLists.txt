@@ -7,3 +7,6 @@ ADD_LIBRARY(asymmetric ${SOURCES})
 ADD_EXECUTABLE(asymmetricfs "${MAIN_SOURCE}")
 
 TARGET_LINK_LIBRARIES(asymmetricfs asymmetric boost_thread boost_program_options boost_system ${FUSE})
+
+INCLUDE_DIRECTORIES(.)
+ADD_SUBDIRECTORY(test)
