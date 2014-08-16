@@ -1,3 +1,4 @@
+*.a
 asymmetricfs
 coverage
 coverage.info
