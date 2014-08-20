@@ -43,8 +43,8 @@ public:
 
     /**
      * Comparable to Python subprocess' communicate.  Returns the number of
-     * bytes read/written in the respective size arguments.  The return value
-     * is 0 on success, otherwise, errno.
+     * bytes read/written remaining the respective size arguments.  The return
+     * value is 0 on success, otherwise, errno.
      *
      * It is an error (EINVAL) to specify a write_buffer when subprocess was
      * created with an external (non-pipe) file descriptor.
