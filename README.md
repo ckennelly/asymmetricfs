@@ -1,5 +1,5 @@
 asymmetricfs - An Asymmetric, Encrypting Filesystem for Userspace
-(c) 2013 - Chris Kennelly (chris@ckennelly.com)
+(c) 2013-2014 - Chris Kennelly (chris@ckennelly.com)
 
 Overview
 ========
