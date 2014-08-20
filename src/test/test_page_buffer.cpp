@@ -154,6 +154,43 @@ TEST_F(PageBufferTest, VerifyContents) {
     }
 }
 
+TEST_F(PageBufferTest, Resize) {
+    std::string data = make_data(256);
+
+    buffer.write(data.size(), 0, &data[0]);
+    EXPECT_EQ(data.size(), buffer.size());
+
+    buffer.resize(128);
+    data.resize(128);
+    EXPECT_EQ(data.size(), buffer.size());
+
+    std::string tmp(128, '\0');
+    buffer.read(tmp.size(), 0, &tmp[0]);
+    EXPECT_EQ(data, tmp);
+}
+
+TEST_F(PageBufferTest, ResizeTriggeringFree) {
+    size_t offset = 4096;
+    std::string data = make_data(4096);
+
+    buffer.write(data.size(), offset, &data[0]);
+    EXPECT_EQ(offset + data.size(), buffer.size());
+
+    std::string tmp(offset + data.size(), '\0');
+    size_t ret;
+
+    ret = buffer.read(tmp.size(), 0, &tmp[0]);
+    EXPECT_EQ(tmp.size(), ret);
+    EXPECT_EQ(std::string(offset, '\0') + data, tmp);
+
+    buffer.resize(offset);
+
+    EXPECT_EQ(offset, buffer.size());
+    tmp.assign(offset, '\1');
+    ret = buffer.read(tmp.size(), 0, &tmp[0]);
+    EXPECT_EQ(std::string(offset, '\0'), tmp);
+}
+
 // The parameter is the number of set bytes.
 class PageBufferSpliceTest : public ::testing::TestWithParam<unsigned>  {
 public:

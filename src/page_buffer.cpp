@@ -294,3 +294,14 @@ size_t page_buffer::round_up_to_page(size_t sz) const {
 bool page_buffer::is_page_multiple(size_t n) const {
     return round_down_to_page(n) == n;
 }
+
+void page_buffer::resize(size_t n) {
+    if (buffer_size_ > n) {
+        // Scan to free pages.
+        page_allocation_map_t::iterator it = page_allocations_.lower_bound(n);
+        assert(it == page_allocations_.end() || it->first >= n);
+        page_allocations_.erase(it, page_allocations_.end());
+    }
+
+    buffer_size_ = n;
+}

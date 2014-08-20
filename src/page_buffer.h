@@ -76,6 +76,11 @@ public:
     void write(size_t n, size_t offset, const void *buffer);
 
     /**
+     * Resizes the buffer to n bytes.
+     */
+    void resize(size_t n);
+
+    /**
      * Splices the contents of the page_buffer into the specified file
      * descriptor, fd.  It falls back to using write() when processing partial
      * pages.
