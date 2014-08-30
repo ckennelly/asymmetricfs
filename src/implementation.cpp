@@ -99,31 +99,14 @@ int asymmetricfs::internal::close() {
 
     int ret = 0;
     if (dirty) {
-        char gpg[] = "gpg";
-        char dash[] = "-ae";
-        char notty[] = "--no-tty";
-        char batch[] = "--batch";
-        char r[] = "-r";
-        /* The lifetime of recipient list is as long as this object. */
-        const size_t n_recipients = recipients_.size();
-        std::vector<std::string> str_recipients(n_recipients);
-        std::transform(recipients_.begin(), recipients_.end(),
-            str_recipients.begin(), [](const gpg_recipient & recipient) {
-                return static_cast<std::string>(recipient);
-            } );
-
-        std::vector<char *> argv(2 * n_recipients + 5, NULL);
-        argv[0] = gpg;
-        argv[1] = dash;
-        argv[2] = notty;
-        argv[3] = batch;
-        for (size_t i = 0; i < n_recipients; i++) {
-            argv[2 * i + 4] = r;
-            argv[2 * i + 5] = const_cast<char *>(str_recipients[i].c_str());
+        std::vector<std::string> argv{"gpg", "-ae", "--no-tty", "--batch"};
+        for (const auto& recipient : recipients_) {
+            argv.push_back("-r");
+            argv.push_back(static_cast<std::string>(recipient));
         }
 
         /* Start gpg. */
-        subprocess s(-1, fd, "gpg", argv.data());
+        subprocess s(-1, fd, "gpg", argv);
 
         size_t str_size = buffer.size();
         s.communicate(NULL, NULL, buffer.data(), &str_size);
@@ -160,11 +143,7 @@ int asymmetricfs::internal::load_buffer() {
 
     /* gpg does not react well to seeing multiple encrypted blocks in the same
      * session, so the data needs to be chunked across multiple calls. */
-    char gpg[] = "gpg";
-    char dash[] = "-d";
-    char notty[] = "--no-tty";
-    char batch[] = "--batch";
-    char *argv[] = {gpg, dash, notty, batch, NULL};
+    const std::vector<std::string> argv{"gpg", "-d", "--no-tty", "--batch"};
 
     struct stat fd_stat;
     int ret = fstat(fd, &fd_stat);

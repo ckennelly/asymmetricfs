@@ -23,8 +23,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-subprocess::subprocess(int fd_in, int fd_out, const char *file,
-        char * const argv[]) : finished_(false) {
+subprocess::subprocess(int fd_in, int fd_out, const std::string& file,
+        const std::vector<std::string>& argv) : finished_(false) {
     fflush(stdout);
 
     int pipes_in[2];
@@ -66,7 +66,13 @@ subprocess::subprocess(int fd_in, int fd_out, const char *file,
 
         close(pipes_out[0]);
         close(pipes_out[1]);
-        execvp(file, argv);
+
+        std::vector<char *> argptrs;
+        for (const auto& v : argv) {
+            argptrs.push_back(const_cast<char *>(v.c_str()));
+        }
+        argptrs.push_back(nullptr);
+        execvp(file.c_str(), argptrs.data());
     } else {
         /* parent. */
         if (fd_in >= 0) {

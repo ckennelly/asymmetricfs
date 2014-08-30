@@ -34,16 +34,6 @@ const char * invalid_gpg_recipient::what() const throw() {
 }
 
 gpg_recipient::gpg_recipient(const std::string & r) {
-    char gpg[]   = "gpg";
-    char option[]  = "--list-keys";
-
-    /* The lifetime of recipient/argv is as long as this object. */
-    const std::string tmp(r);
-    std::vector<char *> argv(4, NULL);
-    argv[0] = gpg;
-    argv[1] = option;
-    argv[2] = const_cast<char *>(tmp.c_str());
-
     /* Start gpg. */
     int in  = ::open("/dev/null", O_RDONLY);
     if (in < 0) {
@@ -58,7 +48,7 @@ gpg_recipient::gpg_recipient(const std::string & r) {
 
     int ret;
     {
-        subprocess s(in, out, "gpg", argv.data());
+        subprocess s(in, out, "gpg", {"gpg", "--list-keys", r});
         ret = s.wait();
     }
 

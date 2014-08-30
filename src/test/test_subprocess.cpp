@@ -20,24 +20,21 @@
 #include "subprocess.h"
 
 TEST(Subprocess, ExitCodeSuccess) {
-    subprocess s(-1, -1, "/bin/true", NULL);
+    subprocess s(-1, -1, "/bin/true", {});
 
     int ret = s.wait();
     EXPECT_EQ(0, ret);
 }
 
 TEST(Subprocess, ExitCodeFailure) {
-    subprocess s(-1, -1, "/bin/false", NULL);
+    subprocess s(-1, -1, "/bin/false", {});
 
     int ret = s.wait();
     EXPECT_EQ(1, ret);
 }
 
 TEST(Subprocess, Communicate) {
-    char dash[] = "-";
-    char* argv[] = {dash, nullptr};
-
-    subprocess s(-1, -1, "/bin/cat", argv);
+    subprocess s(-1, -1, "/bin/cat", {"cat", "-"});
 
     const char write_buffer[] = "foo";
     size_t write_size = sizeof(write_buffer);

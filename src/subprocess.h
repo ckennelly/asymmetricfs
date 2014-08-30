@@ -19,6 +19,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string>
+#include <vector>
+
 class subprocess {
 public:
     /**
@@ -28,7 +31,8 @@ public:
      * in fd_out.  If negative, the file descriptor is ignored and a pipe is
      * created.  The pipe is owned by the instance.
      */
-    subprocess(int fd_in, int fd_out, const char *file, char * const argv[]);
+    subprocess(int fd_in, int fd_out, const std::string& file,
+        const std::vector<std::string>& argv);
     ~subprocess();
 
     /**
