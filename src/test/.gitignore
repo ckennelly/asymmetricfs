@@ -1,2 +1,4 @@
+test_gpg_helper
 test_page_buffer
 test_subprocess
+test_temporary_directory
