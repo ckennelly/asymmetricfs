@@ -112,6 +112,9 @@ page_buffer::~page_buffer() { }
 size_t page_buffer::read(size_t n, size_t offset, void *buffer) const {
     size_t base = round_down_to_page(offset);
 
+    // Shrink request to what we can handle.
+    n = offset < buffer_size_ ? std::min(n, buffer_size_ - offset) : 0;
+
     size_t position = 0;
     for (auto it = page_allocations_.lower_bound(base);
             it != page_allocations_.end() && it->first < n + offset; ++it) {

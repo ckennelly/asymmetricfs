@@ -96,7 +96,19 @@ TEST_F(PageBufferTest, Write) {
 TEST_F(PageBufferTest, ReadBlank) {
     const size_t length = 8192 + 1;
 
-    const std::string expected(length, '\0');
+    std::string tmp(length, '\1');
+    void* ptr = &tmp[0];
+    size_t bytes_read = buffer.read(length, 0, ptr);
+
+    EXPECT_EQ(0, bytes_read);
+}
+
+TEST_F(PageBufferTest, Overread) {
+    const size_t length = 8192 + 1;
+
+    const std::string expected("abcdef");
+    buffer.write(expected.size(), 0, &expected[0]);
+
     std::string tmp(length, '\1');
     #ifdef HAS_VALGRIND
     VALGRIND_MAKE_MEM_UNDEFINED(&tmp[0], length);
@@ -105,7 +117,8 @@ TEST_F(PageBufferTest, ReadBlank) {
     void* ptr = &tmp[0];
     size_t bytes_read = buffer.read(length, 0, ptr);
 
-    EXPECT_EQ(length, bytes_read);
+    EXPECT_EQ(expected.size(), bytes_read);
+    tmp.resize(expected.size());
     EXPECT_EQ(expected, tmp);
 }
 
