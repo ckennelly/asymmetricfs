@@ -69,6 +69,9 @@ public:
     // of home() for this instance.
     gpg_recipient thumbprint() const;
 
+    // Returns the full fingerprint of the generated key.
+    const std::string& fingerprint() const;
+
     // Moveable
     gnupg_key(gnupg_key&&);
     gnupg_key& operator=(gnupg_key&&);
@@ -82,6 +85,7 @@ private:
     key_specification spec_;
     temporary_directory key_directory_;
     std::string thumbprint_;
+    std::string fingerprint_;
 
     boost::filesystem::path public_keyring_;
     boost::filesystem::path secret_keyring_;

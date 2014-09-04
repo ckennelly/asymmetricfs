@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <boost/algorithm/string/erase.hpp>
 #include <boost/lexical_cast.hpp>
 #include "gpg_helper.h"
 #include <sstream>
@@ -123,10 +124,50 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
     size_t index = buffer.find(key_token);
     if (index == std::string::npos ||
             index + key_token.size() + 8 > buffer.size()) {
-        throw gnupg_generation_error("Unable to locate fingerprint.");
+        throw gnupg_generation_error("Unable to locate thumbprint.");
     }
 
     thumbprint_ = buffer.substr(index + key_token.size(), 8);
+
+    const std::string fingerprint_token("Key fingerprint = ");
+    index = buffer.find(fingerprint_token);
+    if (index == std::string::npos ||
+            index + key_token.size() + 8 > buffer.size()) {
+        throw gnupg_generation_error("Unable to locate fingerprint.");
+    }
+    size_t start = index + fingerprint_token.size();
+    size_t eol = buffer.find("\n", start);
+    if (eol == std::string::npos) {
+        eol = buffer.size();
+    }
+    // The fingerprint is in groups of 4, separated by spaces.
+    fingerprint_ = buffer.substr(start, eol - start);
+    boost::algorithm::erase_all(fingerprint_, " ");
+
+    // Configure owner trust for test key.
+    {
+        const std::string trust(fingerprint_ + ":6:\n");
+        const std::vector<std::string> argv{
+            "gpg",
+            "--homedir",
+            key_directory_.path().string(),
+            "--no-permission-warning",
+            "--import-ownertrust"};
+        subprocess p(-1, -1, "gpg", argv);
+
+        size_t buffer_size = trust.size();
+
+        int ret;
+        ret = p.communicate(nullptr, nullptr, &trust[0], &buffer_size);
+        if (ret != 0) {
+            throw gnupg_generation_error("Unable to set owner trust.");
+        }
+
+        ret = p.wait();
+        if (ret != 0) {
+            throw gnupg_generation_error("GPG exited with an error.");
+        }
+    }
 }
 
 gnupg_key::~gnupg_key() {}
@@ -145,4 +186,8 @@ boost::filesystem::path gnupg_key::home() const {
 
 gpg_recipient gnupg_key::thumbprint() const {
     return gpg_recipient(thumbprint_);
+}
+
+const std::string& gnupg_key::fingerprint() const {
+    return fingerprint_;
 }

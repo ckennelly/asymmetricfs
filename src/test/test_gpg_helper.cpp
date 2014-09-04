@@ -30,5 +30,11 @@ TEST(GPG, GenerateKey) {
 
     // Try to retrieve the key.  gpg_recipient automatically validates the key.
     setenv("GNUPGHOME", key.home().string().c_str(), 1);
-    EXPECT_NO_THROW({auto r = key.thumbprint();});
+    std::string thumbprint;
+    EXPECT_NO_THROW({auto r = key.thumbprint(); thumbprint = r;});
+    ASSERT_EQ(8u, thumbprint.size());
+
+    std::string fingerprint = key.fingerprint();
+    ASSERT_EQ(40u, fingerprint.size());
+    EXPECT_EQ(thumbprint, fingerprint.substr(fingerprint.size() - 8u));
 }
