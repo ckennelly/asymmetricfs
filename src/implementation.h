@@ -108,6 +108,11 @@ private:
     open_fd_map_t open_fds_;
 
     /**
+     * A mapping from directory handles to their opened paths.
+     */
+    std::unordered_map<uint64_t, std::string> open_dirs_;
+
+    /**
      * Stats an open internal fd.  The caller should hold a lock.
      */
     int statfd(fd_t fd, struct stat *buf);

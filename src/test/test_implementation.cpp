@@ -184,3 +184,62 @@ TEST_F(ReadWriteModeTest, TwoHandles) {
     ret = fs.release(nullptr, &info[1]);
     EXPECT_EQ(0, ret);
 }
+
+typedef std::map<std::string, struct stat> stat_map;
+
+static int filler(
+        void *buf_, const char *name_, const struct stat *stbuf, off_t off) {
+    auto buf = static_cast<stat_map*>(buf_);
+    const std::string name(name_);
+    (void) off;
+
+    bool r = buf->insert(std::make_pair(name, *stbuf)).second;
+    EXPECT_TRUE(r);
+    return 0;
+}
+
+TEST_F(WriteOnlyModeTest, ListEmptyDirectory) {
+    int ret;
+    // Open directory.
+    struct fuse_file_info info;
+    ret = fs.opendir("/", &info);
+    EXPECT_EQ(0, ret);
+
+    // Read directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(2u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+    }
+
+    // Touch a file.
+    const std::string filename("foo");
+    {
+        struct fuse_file_info finfo;
+        finfo.flags = O_WRONLY;
+        ret = fs.create(("/" + filename).c_str(), 0600, &finfo);
+        EXPECT_EQ(0, ret);
+
+        ret = fs.release(nullptr, &finfo);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Reread directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISREG(buffer[filename].st_mode));
+    }
+
+    ret = fs.releasedir(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}

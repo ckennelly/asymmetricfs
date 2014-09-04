@@ -29,6 +29,7 @@ namespace std { class type_info; }
 #include <cstdlib>
 #include <dirent.h>
 #include "implementation.h"
+#include <set>
 #include <stdexcept>
 #include "subprocess.h"
 #include <sys/mman.h>
@@ -615,12 +616,18 @@ int asymmetricfs::opendir(const char *path_, struct fuse_file_info *info) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    DIR *dir = ::opendir(relpath.c_str());
+    int dirfd = ::openat(root_, relpath.c_str(), O_DIRECTORY);
+    if (dirfd < 0) {
+        return -errno;
+    }
+
+    DIR *dir = ::fdopendir(dirfd);
     if (!(dir)) {
         return -errno;
     }
 
     info->fh = reinterpret_cast<uint64_t>(dir);
+    open_dirs_[info->fh] = relpath;
     return 0;
 }
 
@@ -694,6 +701,13 @@ int asymmetricfs::readdir(const char *path, void *buffer,
 
     DIR *dir = reinterpret_cast<DIR *>(info->fh);
 
+    // Lookup path handle
+    auto it = open_dirs_.find(info->fh);
+    if (it == open_dirs_.end()) {
+        return -EBADF;
+    }
+    const std::string& relpath = it->second;
+
     /**
      * readdir is used preferentially over readdir_r here as the API for
      * readdir_r exposes us to the potential problem of failing to allocate
@@ -715,19 +729,44 @@ int asymmetricfs::readdir(const char *path, void *buffer,
      */
     errno = 0;
 
+    /**
+     * Per the GNU libc manual:
+     *   "Portability Note: On some systems readdir may not return entries for
+     *   . and .., even though these are always valid file names in any
+     *   directory."
+     *
+     * Therefore, we track whether we have seen . and .. and inject them
+     * accordingly.
+     */
+    std::set<std::string> fill_in{".", ".."};
+
     while ((result = ::readdir(dir)) != NULL) {
         struct stat s;
         memset(&s, 0, sizeof(s));
         s.st_ino = result->d_ino;
 
         bool skip = false;
-        switch (result->d_type) {
+        unsigned d_type = result->d_type;
+        if (result->d_type == DT_UNKNOWN) {
+            // Perform stat on entry to get type.
+            struct stat t;
+            int ret = fstatat(
+                root_,
+                (relpath + result->d_name).c_str(),
+                &t, AT_SYMLINK_NOFOLLOW);
+            if (ret < 0) {
+                return -errno;
+            }
+            d_type = IFTODT(t.st_mode);
+        }
+
+        switch (d_type) {
             case DT_LNK:
             case DT_REG:
             case DT_DIR:
-            case DT_UNKNOWN:
-                s.st_mode = DTTOIF((unsigned) result->d_type);
+                s.st_mode = DTTOIF(d_type);
                 break;
+            case DT_UNKNOWN:
             case DT_BLK:
             case DT_CHR:
             case DT_FIFO:
@@ -741,7 +780,20 @@ int asymmetricfs::readdir(const char *path, void *buffer,
             continue;
         }
 
+        fill_in.erase(result->d_name);
         int ret = filler(buffer, result->d_name, &s, 0);
+        if (ret) {
+            return 0;
+        }
+    }
+
+    // Fill in . and .., if they were not seen during the main loop.
+    for (const std::string& name : fill_in) {
+        struct stat s;
+        memset(&s, 0, sizeof(s));
+        s.st_mode = S_IFDIR;
+
+        int ret = filler(buffer, name.c_str(), &s, 0);
         if (ret) {
             return 0;
         }
@@ -798,6 +850,7 @@ int asymmetricfs::releasedir(const char *path, struct fuse_file_info *info) {
         return -errno;
     }
 
+    open_dirs_.erase(info->fh);
     return 0;
 }
 
