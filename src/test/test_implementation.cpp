@@ -243,3 +243,45 @@ TEST_F(WriteOnlyModeTest, ListEmptyDirectory) {
     ret = fs.releasedir(nullptr, &info);
     EXPECT_EQ(0, ret);
 }
+
+class PermissionsTest : public ImplementationTest {};
+
+TEST_F(PermissionsTest, Chmod) {
+    const std::string filename("/test");
+
+    const mode_t initial = 0600;
+    const mode_t final = 0400;
+
+    // Touch
+    int ret;
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_WRONLY;
+        ret = fs.create(filename.c_str(), initial, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat
+    {
+        struct stat buf;
+        ret = fs.getattr(filename.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(initial, buf.st_mode & 07777);
+    }
+
+    // Chmod
+    {
+        ret = fs.chmod(filename.c_str(), final);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat
+    {
+        struct stat buf;
+        ret = fs.getattr(filename.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(final, buf.st_mode & 07777);
+    }
+}
