@@ -21,7 +21,6 @@
 #include <sstream>
 #include "subprocess.h"
 
-#include <iostream>
 
 gnupg_error::~gnupg_error() {}
 
