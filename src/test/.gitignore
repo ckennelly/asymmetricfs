@@ -1,4 +1,5 @@
 test_gpg_helper
+test_implementation
 test_page_buffer
 test_subprocess
 test_temporary_directory

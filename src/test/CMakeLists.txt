@@ -15,6 +15,13 @@ TARGET_LINK_LIBRARIES(test_temporary_directory gtest gtest_main test_helpers)
 ADD_TEST(NAME RUNNER_test_temporary_directory COMMAND "$<TARGET_FILE:test_temporary_directory>")
 ADD_TEST(NAME VRUNNER_test_temporary_directory COMMAND valgrind --error-exitcode=1 --leak-check=full "$<TARGET_FILE:test_temporary_directory>")
 
+# implementation tests
+ADD_EXECUTABLE(test_implementation test_implementation.cpp)
+TARGET_LINK_LIBRARIES(test_implementation gtest gtest_main asymmetric test_helpers)
+
+ADD_TEST(NAME RUNNER_test_implementation COMMAND "$<TARGET_FILE:test_implementation>")
+ADD_TEST(NAME VRUNNER_test_implementation COMMAND valgrind --error-exitcode=1 --leak-check=full "$<TARGET_FILE:test_implementation>")
+
 # page_buffer tests
 ADD_EXECUTABLE(test_page_buffer test_page_buffer.cpp)
 TARGET_LINK_LIBRARIES(test_page_buffer gtest asymmetric)

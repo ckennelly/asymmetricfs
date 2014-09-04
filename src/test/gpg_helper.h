@@ -28,7 +28,11 @@
 // key_specification bundles the parameters used for generating a GPG key.
 class key_specification {
 public:
-    unsigned key_size;
+    key_specification();
+    key_specification(unsigned key_size_, const std::string& name_,
+        const std::string& email_, const std::string& comment_);
+
+    unsigned key_size = 1024;
 
     // Key owner identification.
     std::string name;
@@ -58,7 +62,7 @@ class gnupg_key {
 public:
     // Generate a temporary key with the requested parameters.  It throws
     // gnupg_generation_error on error.
-    gnupg_key(const key_specification&);
+    explicit gnupg_key(const key_specification&);
 
     boost::filesystem::path public_keyring() const;
     boost::filesystem::path secret_keyring() const;

@@ -298,13 +298,13 @@ int asymmetricfs::create(const char *path_, mode_t mode,
     assert(info);
     int ret;
     do {
-        ret = ::open(relpath.c_str(), make_rdwr(info->flags), mode);
+        ret = ::openat(root_, relpath.c_str(), make_rdwr(info->flags), mode);
         if (ret >= 0) {
             break;
         }
 
         if (read_ && (info->flags & O_WRONLY) && errno == EACCES) {
-            ret = ::open(relpath.c_str(), info->flags, mode);
+            ret = ::openat(root_, relpath.c_str(), info->flags, mode);
             if (ret >= 0) {
                 break;
             }
@@ -562,13 +562,13 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
 
     int ret;
     do {
-        ret = ::open(relpath.c_str(), make_rdwr(flags));
+        ret = ::openat(root_, relpath.c_str(), make_rdwr(flags));
         if (ret >= 0) {
             break;
         }
 
         if (read_ && !(for_reading) && errno == EACCES) {
-            ret = ::open(relpath.c_str(), flags);
+            ret = ::openat(root_, relpath.c_str(), flags);
             if (ret >= 0) {
                 break;
             }

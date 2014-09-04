@@ -22,6 +22,12 @@
 #include <sstream>
 #include "subprocess.h"
 
+key_specification::key_specification() {}
+
+key_specification::key_specification(unsigned key_size_,
+    const std::string& name_, const std::string& email_,
+    const std::string& comment_) : key_size(key_size_), name(name_),
+    email(email_), comment(comment_) {}
 
 gnupg_error::~gnupg_error() {}
 
@@ -75,6 +81,7 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
             "--no-tty",
             "--no-default-keyring",
             "--no-permission-warning",
+            "--no-options",
             // TODO: Use --quick-random on GPG 1.x
             "--debug-quick-random"};
         subprocess p(-1, -1, "gpg", argv);
