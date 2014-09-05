@@ -601,3 +601,7 @@ protected:
 TEST_F(ImplementationTest, EmptyTarget) {
     EXPECT_FALSE(fs.set_target(""));
 }
+
+TEST_F(ImplementationTest, LinkNotSupported) {
+    EXPECT_EQ(-EPERM, fs.link(nullptr, nullptr));
+}
