@@ -81,6 +81,11 @@ public:
     void resize(size_t n);
 
     /**
+     * Clears the buffer.
+     */
+    void clear();
+
+    /**
      * Splices the contents of the page_buffer into the specified file
      * descriptor, fd.  It falls back to using write() when processing partial
      * pages.

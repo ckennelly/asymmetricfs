@@ -308,3 +308,8 @@ void page_buffer::resize(size_t n) {
 
     buffer_size_ = n;
 }
+
+void page_buffer::clear() {
+    page_allocations_.clear();
+    buffer_size_ = 0;
+}
