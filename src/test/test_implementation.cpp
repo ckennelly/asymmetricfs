@@ -524,6 +524,71 @@ TEST_P(IOTest, Chmod) {
     }
 }
 
+TEST_P(IOTest, Chown) {
+    const std::string filename("/test");
+
+    // Touch
+    int ret;
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_WRONLY;
+        ret = fs.create(filename.c_str(), 0777, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat
+    struct stat buf;
+    {
+        ret = fs.getattr(filename.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Chown (to the same values).
+    {
+        ret = fs.chown(filename.c_str(), buf.st_uid, buf.st_gid);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Verify unchanged permissions.
+    {
+        struct stat buf2;
+        ret = fs.getattr(filename.c_str(), &buf2);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(buf.st_uid, buf2.st_uid);
+        EXPECT_EQ(buf.st_gid, buf2.st_gid);
+    }
+}
+
+TEST_P(IOTest, ChownToRoot) {
+    const std::string filename("/test");
+
+    // Touch
+    int ret;
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_WRONLY;
+        ret = fs.create(filename.c_str(), 0777, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat
+    struct stat buf;
+    {
+        ret = fs.getattr(filename.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Chown (to root).
+    {
+        ret = fs.chown(filename.c_str(), 0, 0);
+        EXPECT_EQ(-EPERM, ret);
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));
