@@ -23,10 +23,10 @@
 
 class ImplementationTest : public ::testing::Test {
 protected:
-    ImplementationTest() :
+    ImplementationTest(bool read) :
             key(key_specification{1024, "Testing", "test@example.com", ""}) {
         fs.set_target(backing.path().string() + "/");
-        fs.set_read(true);
+        fs.set_read(read);
 
         setenv("GNUPGHOME", key.home().string().c_str(), 1);
         fs.set_recipients({key.thumbprint()});
@@ -44,9 +44,15 @@ protected:
     asymmetricfs fs;
 };
 
-class ReadWriteModeTest : public ImplementationTest {};
+class ReadWriteModeTest : public ImplementationTest {
+protected:
+    ReadWriteModeTest() : ImplementationTest(true) {}
+};
 
-class WriteOnlyModeTest : public ImplementationTest {};
+class WriteOnlyModeTest : public ImplementationTest {
+protected:
+    WriteOnlyModeTest() : ImplementationTest(false) {}
+};
 
 TEST_F(ReadWriteModeTest, ReadWrite) {
     int ret;
@@ -244,7 +250,10 @@ TEST_F(WriteOnlyModeTest, ListEmptyDirectory) {
     EXPECT_EQ(0, ret);
 }
 
-class PermissionsTest : public ImplementationTest {};
+class PermissionsTest : public ImplementationTest {
+protected:
+    PermissionsTest() : ImplementationTest(true) {}
+};
 
 TEST_F(PermissionsTest, Chmod) {
     const std::string filename("/test");
