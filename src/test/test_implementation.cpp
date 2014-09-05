@@ -191,6 +191,339 @@ TEST_F(ReadWriteModeTest, TwoHandles) {
     EXPECT_EQ(0, ret);
 }
 
+TEST_F(ReadWriteModeTest, TruncateInvalidDescriptor) {
+    struct fuse_file_info info;
+    info.fh = -1;
+    int ret = fs.ftruncate(nullptr, 0, &info);
+    EXPECT_EQ(-EBADF, ret);
+}
+
+TEST_F(ReadWriteModeTest, TruncateInvalidOffset) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    struct fuse_file_info info;
+    info.flags = O_CREAT | O_RDWR;
+    ret = fs.create(filename.c_str(), 0600, &info);
+    EXPECT_EQ(0, ret);
+    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+    EXPECT_EQ(contents.size(), ret);
+
+    // Truncate at an invalid offset.
+    ret = fs.ftruncate(nullptr, -1, &info);
+    EXPECT_EQ(-EINVAL, ret);
+
+    // Release
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
+TEST_F(ReadWriteModeTest, TruncateZeroFromCreation) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+
+        // Stat file
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Truncate
+        ret = fs.ftruncate(nullptr, 0, &info);
+        EXPECT_EQ(0, ret);
+
+        // Re-stat.
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Re-stat.
+    {
+        struct stat buf;
+        ret = fs.getattr(filename.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+        EXPECT_LE(0, buf.st_size); // getattr returns the size on-disk, rather
+                                   // than decrypted.  TODO:  Do not write
+                                   // empty files.
+    }
+
+    // Re-open.
+    {
+        struct fuse_file_info info;
+        info.flags = O_RDONLY;
+        ret = fs.open(filename.c_str(), &info);
+        EXPECT_EQ(0, ret);
+
+        // Re-stat.
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+}
+
+TEST_F(WriteOnlyModeTest, TruncateZeroFromCreation) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+
+        // Stat file
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Truncate
+        ret = fs.ftruncate(nullptr, 0, &info);
+        EXPECT_EQ(0, ret);
+
+        // Re-stat.
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Re-stat.
+    {
+        struct stat buf;
+        ret = fs.getattr(filename.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+        EXPECT_LE(0, buf.st_size); // getattr returns the size on-disk, rather
+                                   // than decrypted.  TODO:  Do not write
+                                   // empty files.
+    }
+}
+
+TEST_F(ReadWriteModeTest, TruncateZeroFromExisting) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+
+        // Stat file
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Re-open, truncate.
+    {
+        struct fuse_file_info info;
+        info.flags = O_RDWR;
+        ret = fs.open(filename.c_str(), &info);
+        EXPECT_EQ(0, ret);
+
+        // Truncate
+        ret = fs.ftruncate(nullptr, 0, &info);
+        EXPECT_EQ(0, ret);
+
+        // Re-stat.
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+}
+
+TEST_F(WriteOnlyModeTest, TruncateZeroFromExisting) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+
+        // Stat file
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Re-open, truncate.
+    {
+        struct fuse_file_info info;
+        info.flags = O_RDONLY;
+        ret = fs.open(filename.c_str(), &info);
+        EXPECT_EQ(0, ret);
+
+        // Truncate
+        ret = fs.ftruncate(nullptr, 0, &info);
+        EXPECT_EQ(-EINVAL, ret); // File not open for writing.
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+}
+
+TEST_F(ReadWriteModeTest, TruncatePartial) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+    off_t offset = 3;
+
+    // Open a test file in the filesystem, write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+
+        // Stat file
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Truncate
+        ret = fs.ftruncate(nullptr, offset, &info);
+        EXPECT_EQ(0, ret);
+
+        // Re-stat.
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(offset, buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Re-open.
+    {
+        struct fuse_file_info info;
+        info.flags = O_RDONLY;
+        ret = fs.open(filename.c_str(), &info);
+        EXPECT_EQ(0, ret);
+
+        // Re-stat.
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(offset, buf.st_size);
+
+        // Read contents.
+        std::string buffer(1 << 16, '\0');
+        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
+        ASSERT_EQ(offset, ret);
+        buffer.resize(ret);
+        EXPECT_EQ(contents.substr(0, offset), buffer);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+}
+
+TEST_F(WriteOnlyModeTest, TruncatePartial) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+    off_t offset = 3;
+
+    // Open a test file in the filesystem, write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+
+        // Stat file
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Truncate
+        ret = fs.ftruncate(nullptr, offset, &info);
+        // TODO:  If the file is currently open (from creation), we can safely
+        // truncate without an access violation.
+        EXPECT_EQ(-EACCES, ret);
+
+        // Re-stat.
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.size(), buf.st_size);
+
+        // Release
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+}
+
 typedef std::map<std::string, struct stat> stat_map;
 
 static int filler(
