@@ -592,3 +592,12 @@ TEST_P(IOTest, ChownToRoot) {
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));
+
+class ImplementationTest : public ::testing::Test {
+protected:
+    asymmetricfs fs;
+};
+
+TEST_F(ImplementationTest, EmptyTarget) {
+    EXPECT_FALSE(fs.set_target(""));
+}
