@@ -2,6 +2,7 @@
 asymmetricfs
 coverage
 coverage.info
+lib*.a
 *.d
 *.gcda
 *.gcno
