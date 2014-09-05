@@ -68,6 +68,13 @@ protected:
     asymmetricfs fs;
 };
 
+TEST_P(IOTest, ReadInvalidDescriptor) {
+    struct fuse_file_info info;
+    info.fh = -1;
+    char buf[16];
+    EXPECT_EQ(-EBADF, fs.read(nullptr, buf, sizeof(buf), 0, &info));
+}
+
 TEST_P(IOTest, ReadWrite) {
     int ret;
 
