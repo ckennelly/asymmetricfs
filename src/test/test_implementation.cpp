@@ -16,17 +16,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
 #include <gtest/gtest.h>
 #include "gpg_helper.h"
 #include "implementation.h"
 #include "test/temporary_directory.h"
 
-class ImplementationTest : public ::testing::Test {
+enum class IOMode {
+    ReadWrite,
+    WriteOnly
+};
+
+std::ostream& operator<<(std::ostream& o, const IOMode& m) {
+    switch (m) {
+        case IOMode::ReadWrite:
+            return o << "read-write";
+        case IOMode::WriteOnly:
+            return o << "write-only";
+    }
+
+    return o;
+}
+
+class IOTest : public ::testing::TestWithParam<IOMode> {
 protected:
-    ImplementationTest(bool read) :
-            key(key_specification{1024, "Testing", "test@example.com", ""}) {
+    IOTest() : key(key_specification{1024, "Testing", "test@example.com", ""}) {
         fs.set_target(backing.path().string() + "/");
-        fs.set_read(read);
+
+        switch (GetParam()) {
+            case IOMode::ReadWrite:
+                fs.set_read(true);
+                break;
+            case IOMode::WriteOnly:
+                fs.set_read(false);
+                break;
+        }
 
         setenv("GNUPGHOME", key.home().string().c_str(), 1);
         fs.set_recipients({key.thumbprint()});
@@ -35,7 +59,7 @@ protected:
         EXPECT_TRUE(fs.ready());
     }
 
-    ~ImplementationTest() {
+    ~IOTest() {
         unsetenv("GNUPGHOME");
     }
 
@@ -44,17 +68,7 @@ protected:
     asymmetricfs fs;
 };
 
-class ReadWriteModeTest : public ImplementationTest {
-protected:
-    ReadWriteModeTest() : ImplementationTest(true) {}
-};
-
-class WriteOnlyModeTest : public ImplementationTest {
-protected:
-    WriteOnlyModeTest() : ImplementationTest(false) {}
-};
-
-TEST_F(ReadWriteModeTest, ReadWrite) {
+TEST_P(IOTest, ReadWrite) {
     int ret;
 
     const std::string filename("/test");
@@ -89,16 +103,20 @@ TEST_F(ReadWriteModeTest, ReadWrite) {
 
         std::string buffer(1 << 16, '\0');
         ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
-        ASSERT_EQ(contents.size(), ret);
-        buffer.resize(ret);
-        EXPECT_EQ(contents, buffer);
+        if (GetParam() == IOMode::ReadWrite) {
+            ASSERT_EQ(contents.size(), ret);
+            buffer.resize(ret);
+            EXPECT_EQ(contents, buffer);
+        } else {
+            EXPECT_EQ(-EACCES, ret);
+        }
 
         ret = fs.release(nullptr, &info);
         EXPECT_EQ(0, ret);
     }
 }
 
-TEST_F(ReadWriteModeTest, Append) {
+TEST_P(IOTest, Append) {
     int ret;
 
     const std::string filename("/test");
@@ -148,16 +166,20 @@ TEST_F(ReadWriteModeTest, Append) {
 
         std::string buffer(1 << 16, '\0');
         ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
-        ASSERT_EQ(contents1.size() + contents2.size(), ret);
-        buffer.resize(ret);
-        EXPECT_EQ(contents1 + contents2, buffer);
+        if (GetParam() == IOMode::ReadWrite) {
+            ASSERT_EQ(contents1.size() + contents2.size(), ret);
+            buffer.resize(ret);
+            EXPECT_EQ(contents1 + contents2, buffer);
+        } else {
+            EXPECT_EQ(-EACCES, ret);
+        }
 
         ret = fs.release(nullptr, &info);
         EXPECT_EQ(0, ret);
     }
 }
 
-TEST_F(ReadWriteModeTest, TwoHandles) {
+TEST_P(IOTest, TwoHandles) {
     int ret;
 
     const std::string filename("/test");
@@ -191,14 +213,14 @@ TEST_F(ReadWriteModeTest, TwoHandles) {
     EXPECT_EQ(0, ret);
 }
 
-TEST_F(ReadWriteModeTest, TruncateInvalidDescriptor) {
+TEST_P(IOTest, TruncateInvalidDescriptor) {
     struct fuse_file_info info;
     info.fh = -1;
     int ret = fs.ftruncate(nullptr, 0, &info);
     EXPECT_EQ(-EBADF, ret);
 }
 
-TEST_F(ReadWriteModeTest, TruncateInvalidOffset) {
+TEST_P(IOTest, TruncateInvalidOffset) {
     int ret;
 
     const std::string filename("/test");
@@ -221,7 +243,7 @@ TEST_F(ReadWriteModeTest, TruncateInvalidOffset) {
     EXPECT_EQ(0, ret);
 }
 
-TEST_F(ReadWriteModeTest, TruncateZeroFromCreation) {
+TEST_P(IOTest, TruncateZeroFromCreation) {
     int ret;
 
     const std::string filename("/test");
@@ -266,8 +288,8 @@ TEST_F(ReadWriteModeTest, TruncateZeroFromCreation) {
                                    // empty files.
     }
 
-    // Re-open.
-    {
+    // Re-open if in ReadWrite mode.
+    if (GetParam() == IOMode::ReadWrite) {
         struct fuse_file_info info;
         info.flags = O_RDONLY;
         ret = fs.open(filename.c_str(), &info);
@@ -285,53 +307,7 @@ TEST_F(ReadWriteModeTest, TruncateZeroFromCreation) {
     }
 }
 
-TEST_F(WriteOnlyModeTest, TruncateZeroFromCreation) {
-    int ret;
-
-    const std::string filename("/test");
-    const std::string contents("abcdefg");
-
-    // Open a test file in the filesystem, write to it.
-    {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
-
-        // Stat file
-        struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
-        EXPECT_EQ(contents.size(), buf.st_size);
-
-        // Truncate
-        ret = fs.ftruncate(nullptr, 0, &info);
-        EXPECT_EQ(0, ret);
-
-        // Re-stat.
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
-        EXPECT_EQ(0, buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
-    }
-
-    // Re-stat.
-    {
-        struct stat buf;
-        ret = fs.getattr(filename.c_str(), &buf);
-        EXPECT_EQ(0, ret);
-        EXPECT_LE(0, buf.st_size); // getattr returns the size on-disk, rather
-                                   // than decrypted.  TODO:  Do not write
-                                   // empty files.
-    }
-}
-
-TEST_F(ReadWriteModeTest, TruncateZeroFromExisting) {
+TEST_P(IOTest, TruncateZeroFromExisting) {
     int ret;
 
     const std::string filename("/test");
@@ -360,7 +336,7 @@ TEST_F(ReadWriteModeTest, TruncateZeroFromExisting) {
     // Re-open, truncate.
     {
         struct fuse_file_info info;
-        info.flags = O_RDWR;
+        info.flags = O_WRONLY;
         ret = fs.open(filename.c_str(), &info);
         EXPECT_EQ(0, ret);
 
@@ -380,50 +356,7 @@ TEST_F(ReadWriteModeTest, TruncateZeroFromExisting) {
     }
 }
 
-TEST_F(WriteOnlyModeTest, TruncateZeroFromExisting) {
-    int ret;
-
-    const std::string filename("/test");
-    const std::string contents("abcdefg");
-
-    // Open a test file in the filesystem, write to it.
-    {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
-
-        // Stat file
-        struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
-        EXPECT_EQ(contents.size(), buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
-    }
-
-    // Re-open, truncate.
-    {
-        struct fuse_file_info info;
-        info.flags = O_RDONLY;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
-
-        // Truncate
-        ret = fs.ftruncate(nullptr, 0, &info);
-        EXPECT_EQ(-EINVAL, ret); // File not open for writing.
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
-    }
-}
-
-TEST_F(ReadWriteModeTest, TruncatePartial) {
+TEST_P(IOTest, TruncatePartial) {
     int ret;
 
     const std::string filename("/test");
@@ -447,12 +380,17 @@ TEST_F(ReadWriteModeTest, TruncatePartial) {
 
         // Truncate
         ret = fs.ftruncate(nullptr, offset, &info);
-        EXPECT_EQ(0, ret);
+        if (GetParam() == IOMode::ReadWrite) {
+            EXPECT_EQ(0, ret);
 
-        // Re-stat.
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
-        EXPECT_EQ(offset, buf.st_size);
+            // Re-stat.
+            ret = fs.fgetattr(nullptr, &buf, &info);
+            EXPECT_EQ(0, ret);
+            EXPECT_EQ(offset, buf.st_size);
+        } else {
+            // TODO:  Permit truncations of newly created files.
+            EXPECT_EQ(-EACCES, ret);
+        }
 
         // Release
         ret = fs.release(nullptr, &info);
@@ -460,7 +398,7 @@ TEST_F(ReadWriteModeTest, TruncatePartial) {
     }
 
     // Re-open.
-    {
+    if (GetParam() == IOMode::ReadWrite) {
         struct fuse_file_info info;
         info.flags = O_RDONLY;
         ret = fs.open(filename.c_str(), &info);
@@ -485,45 +423,6 @@ TEST_F(ReadWriteModeTest, TruncatePartial) {
     }
 }
 
-TEST_F(WriteOnlyModeTest, TruncatePartial) {
-    int ret;
-
-    const std::string filename("/test");
-    const std::string contents("abcdefg");
-    off_t offset = 3;
-
-    // Open a test file in the filesystem, write to it.
-    {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
-
-        // Stat file
-        struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
-        EXPECT_EQ(contents.size(), buf.st_size);
-
-        // Truncate
-        ret = fs.ftruncate(nullptr, offset, &info);
-        // TODO:  If the file is currently open (from creation), we can safely
-        // truncate without an access violation.
-        EXPECT_EQ(-EACCES, ret);
-
-        // Re-stat.
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
-        EXPECT_EQ(contents.size(), buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
-    }
-}
-
 typedef std::map<std::string, struct stat> stat_map;
 
 static int filler(
@@ -537,7 +436,7 @@ static int filler(
     return 0;
 }
 
-TEST_F(WriteOnlyModeTest, ListEmptyDirectory) {
+TEST_P(IOTest, ListEmptyDirectory) {
     int ret;
     // Open directory.
     struct fuse_file_info info;
@@ -583,16 +482,13 @@ TEST_F(WriteOnlyModeTest, ListEmptyDirectory) {
     EXPECT_EQ(0, ret);
 }
 
-class PermissionsTest : public ImplementationTest {
-protected:
-    PermissionsTest() : ImplementationTest(true) {}
-};
-
-TEST_F(PermissionsTest, Chmod) {
+TEST_P(IOTest, Chmod) {
     const std::string filename("/test");
 
     const mode_t initial = 0600;
     const mode_t final = 0400;
+
+    const mode_t mask = GetParam() == IOMode::ReadWrite ? 07777 : 07333;
 
     // Touch
     int ret;
@@ -610,7 +506,7 @@ TEST_F(PermissionsTest, Chmod) {
         struct stat buf;
         ret = fs.getattr(filename.c_str(), &buf);
         EXPECT_EQ(0, ret);
-        EXPECT_EQ(initial, buf.st_mode & 07777);
+        EXPECT_EQ(initial & mask, buf.st_mode & 07777);
     }
 
     // Chmod
@@ -624,6 +520,10 @@ TEST_F(PermissionsTest, Chmod) {
         struct stat buf;
         ret = fs.getattr(filename.c_str(), &buf);
         EXPECT_EQ(0, ret);
-        EXPECT_EQ(final, buf.st_mode & 07777);
+        EXPECT_EQ(final & mask, buf.st_mode & 07777);
     }
 }
+
+INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
+                        ::testing::Values(IOMode::ReadWrite,
+                                          IOMode::WriteOnly));
