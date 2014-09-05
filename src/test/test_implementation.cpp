@@ -612,3 +612,17 @@ TEST_F(ImplementationTest, EmptyTarget) {
 TEST_F(ImplementationTest, LinkNotSupported) {
     EXPECT_EQ(-EPERM, fs.link(nullptr, nullptr));
 }
+
+TEST_F(ImplementationTest, StatFS) {
+    temporary_directory target;
+    fs.set_target(target.path().string());
+
+    struct fuse_conn_info conn;
+    fs.init(&conn);
+
+    struct statvfs buf;
+    int ret = fs.statfs(nullptr, &buf);
+    EXPECT_EQ(0, ret);
+    EXPECT_LE(0, buf.f_blocks);
+    EXPECT_LE(0, buf.f_bfree);
+}
