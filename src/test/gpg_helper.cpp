@@ -17,7 +17,6 @@
  */
 
 #include <boost/algorithm/string/erase.hpp>
-#include <boost/lexical_cast.hpp>
 #include "gpg_helper.h"
 #include <sstream>
 #include "subprocess.h"
@@ -126,7 +125,7 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
         }
     }
 
-    const std::string key_size(boost::lexical_cast<std::string>(spec.key_size));
+    const std::string key_size(std::to_string(spec.key_size));
     const std::string key_token = "pub   " + key_size + "R/";
     size_t index = buffer.find(key_token);
     if (index == std::string::npos ||
