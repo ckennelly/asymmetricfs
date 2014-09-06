@@ -483,9 +483,14 @@ int asymmetricfs::getattr(const char *path_, struct stat *buf) {
         }
 
         const std::string relpath("." + path);
+        int fd = ::openat(root_, relpath.c_str(), O_NOFOLLOW | O_PATH);
+        if (fd < 0) {
+            return -errno;
+        }
 
         struct stat s;
-        const int ret = ::lstat(relpath.c_str(), &s);
+        const int ret = ::fstat(fd, &s);
+        ::close(fd);
         if (ret != 0) {
             return -errno;
         }
