@@ -29,6 +29,7 @@ namespace std { class type_info; }
 #include <cstdlib>
 #include <dirent.h>
 #include "implementation.h"
+#include "page_buffer.h"
 #include <set>
 #include <stdexcept>
 #include "subprocess.h"
@@ -68,7 +69,7 @@ public:
 
     bool buffer_set;
     bool dirty;
-    std::string buffer;
+    page_buffer buffer;
 
     /**
      * Returns 0 on success, otherwise the corresponding standard error code.
@@ -110,8 +111,7 @@ int asymmetricfs::internal::close() {
         /* Start gpg. */
         subprocess s(-1, fd, "gpg", argv);
 
-        size_t str_size = buffer.size();
-        s.communicate(NULL, NULL, buffer.data(), &str_size);
+        buffer.splice(s.in(), 0);
 
         int wait_ret = s.wait();
         if (wait_ret != 0) {
@@ -209,23 +209,23 @@ int asymmetricfs::internal::load_buffer() {
 
         /* Communicate with gpg. */
         const size_t chunk_size = 1 << 20;
+        std::string receive_buffer(chunk_size, '\0');
         while (true) {
-            size_t buffer_size  = buffer.size();
-            size_t this_chunk   = chunk_size;
-            buffer.resize(buffer_size + this_chunk);
+            size_t this_chunk = receive_buffer.size();
 
             size_t write_remaining = write_size;
-            int cret = s.communicate(&buffer[buffer_size], &this_chunk,
+            int cret = s.communicate(&receive_buffer[0], &this_chunk,
                 write_buffer, &write_remaining);
             if (cret != 0) {
                 ret = -cret;
                 break;
             }
 
-            buffer.resize(buffer_size + chunk_size - this_chunk);
             if (chunk_size == this_chunk) {
                 break;
             }
+            buffer.write(
+                chunk_size - this_chunk, buffer.size(), &receive_buffer[0]);
 
             if (write_buffer) {
                 write_buffer += write_size - write_remaining;
@@ -664,40 +664,16 @@ int asymmetricfs::read(const char *path, void *buffer, size_t size,
                 return -EACCES;
             }
         }
-
-        const std::string & str = it->second->buffer;
-        const size_t str_size = str.size();
-        if (str_size < offset) {
-            /* No bytes available for reading. */
-            return 0;
+    } else {
+        /* Read the buffer, as needed. */
+        int ret = it->second->load_buffer();
+        if (ret != 0) {
+            return -ret;
         }
-
-        const size_t remaining = std::min(std::min(str_size - offset, size),
-            static_cast<size_t>(std::numeric_limits<int>::max()));
-        memcpy(buffer, str.data() + offset, remaining);
-        return static_cast<int>(remaining);
+        assert(it->second->buffer_set);
     }
 
-    /* Read the buffer, as needed. */
-    int ret = it->second->load_buffer();
-    if (ret != 0) {
-        return -ret;
-    }
-
-    assert(it->second->buffer_set);
-
-    /* Grab a reference to the buffer. */
-    const std::string & str = it->second->buffer;
-    const size_t str_size = str.size();
-    if (str_size <= offset) {
-        /* Nothing left to read. */
-        return 0;
-    }
-
-    const size_t remaining = std::min(str_size - offset, size);
-    memcpy(buffer, str.data(), remaining);
-    assert(remaining < INT_MAX);
-    return (int) remaining;
+    return static_cast<int>(it->second->buffer.read(size, offset, buffer));
 }
 
 int asymmetricfs::readdir(const char *path, void *buffer,
@@ -1020,8 +996,8 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
     }
 }
 
-int asymmetricfs::write(const char *path_, const char * buffer, size_t size,
-        off_t offset_, struct fuse_file_info *info) {
+int asymmetricfs::write(const char *path_, const char *buffer, size_t size,
+        off_t offset, struct fuse_file_info *info) {
     (void) path_;
 
     scoped_lock l(mx_);
@@ -1036,17 +1012,12 @@ int asymmetricfs::write(const char *path_, const char * buffer, size_t size,
         return 0;
     }
 
-    if (offset_ < 0) {
+    if (offset < 0) {
         return -EINVAL;
     }
 
-    const size_t offset = static_cast<size_t>(offset_);
-    internal & data = *it->second;
-
-    const size_t new_size = std::max(data.buffer.size(), offset + size);
-    data.buffer.resize(new_size);
-    memcpy(&data.buffer[offset], buffer, size);
-    data.dirty = true;
+    it->second->buffer.write(size, static_cast<size_t>(offset), buffer);
+    it->second->dirty = true;
 
     return static_cast<int>(size);
 }
