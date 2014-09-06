@@ -52,6 +52,9 @@ gpg_recipient::gpg_recipient(const std::string & r) {
         ret = s.wait();
     }
 
+    ::close(in);
+    ::close(out);
+
     if (ret == 0) {
         /* Valid address. */
         r_ = r;
