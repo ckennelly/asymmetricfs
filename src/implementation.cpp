@@ -1052,10 +1052,36 @@ int asymmetricfs::access(const char *path_, int mode) {
 
     int ret = 0;
     if ((mode & R_OK) && !(read_)) {
-        ret = -EACCES;
+        // If the file is currently open for reading, grant access normally.
+        scoped_lock l(mx_);
+
+        auto it = open_paths_.find(path);
+        if (it == open_paths_.end()) {
+            // Not open.
+            return -EACCES;
+        }
+        const fd_t fd = it->second;
+
+        auto jit = open_fds_.find(fd);
+        if (jit == open_fds_.end()) {
+            // open_paths_ and open_fds_ are inconsistent.
+            return -EIO;
+        }
+        const int flags = jit->second->flags;
+
+        if (flags & O_APPEND) {
+            // Files open for appending can't be read.
+            return -EACCES;
+        } else if ((flags & O_CREAT) == 0) {
+            // A file opened without O_CREAT implies it existed before, so it
+            // cannot be read.
+            return -EACCES;
+        }
+
+        // Otherwise, fallthrough and check the underlying filesystem.
     }
 
-    int aret = ::access(relpath.c_str(), mode);
+    int aret = ::faccessat(root_, relpath.c_str(), mode, 0);
     if (aret == 0) {
         return ret;
     } else {

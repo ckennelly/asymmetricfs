@@ -69,6 +69,66 @@ protected:
     asymmetricfs fs;
 };
 
+TEST_P(IOTest, Access) {
+    // We touch file_closed and immediately close it.  We touch file_open and
+    // keep it open throughout the test.
+    const std::string file_closed("/foo");
+    const std::string file_open  ("/bar");
+
+    struct fuse_file_info info;
+    int ret;
+    info.flags = O_CREAT | O_RDWR;
+    ret = fs.create(file_closed.c_str(), 0600, &info);
+    EXPECT_EQ(0, ret);
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+
+    ret = fs.create(file_open.c_str(), 0700, &info);
+    EXPECT_EQ(0, ret);
+
+    for (int i = 0; i < 4; i++) {
+        SCOPED_TRACE(i);
+
+        // Create mode.
+        int mode = 0;
+        if (i & 1) {
+            mode |= W_OK;
+        }
+        if (i & 2) {
+            mode |= R_OK;
+        }
+
+        // Compute expected outcomes.
+        int expected_closed, expected_open;
+        if (GetParam() == IOMode::ReadWrite) {
+            expected_closed = 0;
+            expected_open = 0;
+        } else {
+            if (mode & R_OK) {
+                expected_closed = -EACCES;
+            } else {
+                expected_closed = 0;
+            }
+            expected_open = 0;
+        }
+
+        // Check access permissions for both files.
+        ret = fs.access(file_closed.c_str(), mode);
+        EXPECT_EQ(expected_closed, ret);
+
+        ret = fs.access(file_open.c_str(), mode);
+        EXPECT_EQ(expected_open, ret);
+    }
+
+    // Close file_open.
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
+TEST_P(IOTest, AccessInvalidFile) {
+    EXPECT_EQ(-ENOENT, fs.access("/foo", W_OK | X_OK));
+}
+
 TEST_P(IOTest, ReadInvalidDescriptor) {
     struct fuse_file_info info;
     info.fh = -1;
