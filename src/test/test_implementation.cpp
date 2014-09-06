@@ -842,6 +842,171 @@ TEST_P(IOTest, ChownToRoot) {
     }
 }
 
+TEST_P(IOTest, Rename) {
+    const std::string oldname("foo");
+    const std::string newname("bar");
+
+    const std::string full_oldname("/" + oldname);
+    const std::string full_newname("/" + newname);
+
+    int ret;
+
+    // Touch a file.
+    {
+        struct fuse_file_info finfo;
+        finfo.flags = O_WRONLY;
+        ret = fs.create(full_oldname.c_str(), 0600, &finfo);
+        EXPECT_EQ(0, ret);
+
+        ret = fs.release(nullptr, &finfo);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        // Open directory.
+        struct fuse_file_info info;
+        ret = fs.opendir("/", &info);
+        EXPECT_EQ(0, ret);
+
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISREG(buffer[oldname].st_mode));
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Rename
+    {
+        ret = fs.rename(full_oldname.c_str(), full_newname.c_str());
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        // Open directory.
+        struct fuse_file_info info;
+        ret = fs.opendir("/", &info);
+        EXPECT_EQ(0, ret);
+
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISREG(buffer[newname].st_mode));
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat files
+    {
+        struct stat buf;
+        ret = fs.getattr(full_oldname.c_str(), &buf);
+        EXPECT_EQ(-ENOENT, ret);
+
+        ret = fs.getattr(full_newname.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+        EXPECT_TRUE(S_ISREG(buf.st_mode));
+        EXPECT_EQ(0, buf.st_size);
+    }
+}
+
+TEST_P(IOTest, RenameOpenFile) {
+    const std::string oldname("foo");
+    const std::string newname("bar");
+
+    const std::string full_oldname("/" + oldname);
+    const std::string full_newname("/" + newname);
+
+    int ret;
+
+    // Touch a file.
+    struct fuse_file_info finfo;
+    finfo.flags = O_WRONLY;
+    ret = fs.create(full_oldname.c_str(), 0600, &finfo);
+    EXPECT_EQ(0, ret);
+
+    // Read directory
+    {
+        // Open directory.
+        struct fuse_file_info info;
+        ret = fs.opendir("/", &info);
+        EXPECT_EQ(0, ret);
+
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISREG(buffer[oldname].st_mode));
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Rename
+    {
+        ret = fs.rename(full_oldname.c_str(), full_newname.c_str());
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        // Open directory.
+        struct fuse_file_info info;
+        ret = fs.opendir("/", &info);
+        EXPECT_EQ(0, ret);
+
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISREG(buffer[newname].st_mode));
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat files via path.
+    {
+        struct stat buf;
+        ret = fs.getattr(full_oldname.c_str(), &buf);
+        EXPECT_EQ(-ENOENT, ret);
+
+        ret = fs.getattr(full_newname.c_str(), &buf);
+        EXPECT_EQ(0, ret);
+        EXPECT_TRUE(S_ISREG(buf.st_mode));
+        EXPECT_EQ(0, buf.st_size);
+    }
+
+    // Stat files via descriptor.
+    {
+        struct stat buf;
+        ret = fs.fgetattr(nullptr, &buf, &finfo);
+        EXPECT_EQ(0, ret);
+        EXPECT_TRUE(S_ISREG(buf.st_mode));
+        EXPECT_EQ(0, buf.st_size);
+    }
+
+    ret = fs.release(nullptr, &finfo);
+    EXPECT_EQ(0, ret);
+}
+
 TEST_P(IOTest, StatWhileOpen) {
     // We create a file and stat it by path (rather than descriptor) while
     // keeping the descriptor open.

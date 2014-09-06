@@ -882,7 +882,7 @@ int asymmetricfs::rename(const char *oldpath_, const char *newpath_) {
      */
     scoped_lock l(mx_);
 
-    int ret = ::rename(reloldpath.c_str(), relnewpath.c_str());
+    int ret = ::renameat(root_, reloldpath.c_str(), root_, relnewpath.c_str());
     if (ret != 0) {
         return -errno;
     }
