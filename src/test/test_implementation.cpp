@@ -869,6 +869,57 @@ TEST_P(IOTest, StatWhileOpen) {
     EXPECT_EQ(0, ret);
 }
 
+TEST_P(IOTest, CreateSymlink) {
+    const std::string target("/dev/null");
+    const std::string link_name("foo");
+    const std::string full_link_name("/" + link_name);
+
+    int ret;
+    // Open directory.
+    struct fuse_file_info info;
+    ret = fs.opendir("/", &info);
+    EXPECT_EQ(0, ret);
+
+    // Read directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(2u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+    }
+
+    // symlink
+    {
+        ret = fs.symlink(target.c_str(), full_link_name.c_str());
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISLNK(buffer[link_name].st_mode));
+    }
+
+    ret = fs.releasedir(nullptr, &info);
+    EXPECT_EQ(0, ret);
+
+    // readlink
+    std::string buffer(1 << 8, '\0');
+    ret = fs.readlink(full_link_name.c_str(), &buffer[0], buffer.size());
+    EXPECT_EQ(target.size(), ret);
+    buffer.resize(target.size());
+    EXPECT_EQ(target, buffer);
+}
+
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));

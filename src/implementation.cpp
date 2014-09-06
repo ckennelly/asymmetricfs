@@ -814,14 +814,11 @@ int asymmetricfs::readlink(const char *path_, char *buffer, size_t size) {
 
     size_t len = size > 0 ? size - 1 : 0;
 
-    ssize_t ret = ::readlink(relpath.c_str(), buffer, len);
+    ssize_t ret = ::readlinkat(root_, relpath.c_str(), buffer, len);
     if (ret == -1) {
         return -errno;
     } else {
-        assert(ret >= 0);
-        assert(ret <= INT_MAX);
-        buffer[ret] = '\0';
-        return 0;
+        return int(ret);
     }
 }
 
@@ -948,7 +945,7 @@ int asymmetricfs::symlink(const char *oldpath, const char *newpath_) {
     const std::string newpath(newpath_);
     const std::string relpath("." + newpath);
 
-    int ret = ::symlink(oldpath, relpath.c_str());
+    int ret = ::symlinkat(oldpath, root_, relpath.c_str());
     if (ret != 0) {
         return -errno;
     }
