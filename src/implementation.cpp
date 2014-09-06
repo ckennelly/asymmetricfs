@@ -317,7 +317,7 @@ int asymmetricfs::create(const char *path_, mode_t mode,
     /* Update list of open files. */
     scoped_lock l(mx_);
     const fd_t fd = next_fd();
-    open_paths_.insert(open_map_t::value_type(path, fd));
+    open_paths_.insert(std::make_pair(path, fd));
 
     internal * data = new internal(recipients_);
     data->fd            = ret;
@@ -325,7 +325,7 @@ int asymmetricfs::create(const char *path_, mode_t mode,
     data->path          = path;
     data->references    = 1;
     data->buffer_set    = true;
-    open_fds_  .insert(open_fd_map_t::value_type(fd, data));
+    open_fds_  .insert(std::make_pair(fd, data));
 
     info->fh = fd;
 
@@ -580,7 +580,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
 
     /* Update list of open files. */
     const fd_t fd = next_fd();
-    open_paths_.insert(open_map_t::value_type(path, fd));
+    open_paths_.insert(std::make_pair(path, fd));
 
     internal * data = new internal(recipients_);
     data->fd            = ret;
@@ -605,7 +605,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
         data->buffer_set = false;
     }
 
-    open_fds_  .insert(open_fd_map_t::value_type(fd, data));
+    open_fds_  .insert(std::make_pair(fd, data));
 
     info->fh = fd;
 
@@ -889,7 +889,7 @@ int asymmetricfs::rename(const char *oldpath_, const char *newpath_) {
         /* Rename existing, open files. */
         const fd_t fd = it->second;
 
-        open_paths_.insert(open_map_t::value_type(newpath, fd));
+        open_paths_.insert(std::make_pair(newpath, fd));
         open_paths_.erase(it);
 
         open_fd_map_t::iterator jit = open_fds_.find(fd);
