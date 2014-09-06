@@ -124,6 +124,47 @@ TEST_P(IOTest, ReadWrite) {
     }
 }
 
+TEST_P(IOTest, WriteInvalidDescriptor) {
+    struct fuse_file_info info;
+    info.fh = -1;
+
+    char buf[16];
+    EXPECT_EQ(-EBADF, fs.write(nullptr, buf, sizeof(buf), 0, &info));
+}
+
+TEST_P(IOTest, WriteZeroBytes) {
+    int ret;
+
+    const std::string filename("/test");
+    struct fuse_file_info info;
+    info.flags = O_CREAT | O_RDWR;
+    ret = fs.create(filename.c_str(), 0600, &info);
+
+    char buf[16];
+    ret = fs.write(nullptr, buf, 0, 0, &info);
+    EXPECT_EQ(0, ret);
+
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
+TEST_P(IOTest, WriteInvalidOffset) {
+    int ret;
+
+    const std::string filename("/test");
+
+    struct fuse_file_info info;
+    info.flags = O_CREAT | O_RDWR;
+    ret = fs.create(filename.c_str(), 0600, &info);
+
+    char buf[16];
+    ret = fs.write(nullptr, buf, sizeof(buf), -1, &info);
+    EXPECT_EQ(-EINVAL, ret);
+
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
 TEST_P(IOTest, Append) {
     int ret;
 
