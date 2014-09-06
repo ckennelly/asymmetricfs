@@ -277,6 +277,7 @@ int main(int argc, char **argv) {
     ops.write       = helper_write;
     ops.flag_nullpath_ok = 1;
     ops.flag_nopath = 1;
+    ops.flag_utime_omit_ok = 1;
 
     return fuse_main(fuse_argc, fuse_argv.data(), &ops, NULL);
 }

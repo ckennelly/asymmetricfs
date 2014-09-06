@@ -1145,6 +1145,45 @@ TEST_P(IOTest, CreateSymlink) {
     EXPECT_EQ(target, buffer);
 }
 
+bool operator==(const struct timespec& a, const struct timespec& b) {
+    return a.tv_sec == b.tv_sec && a.tv_nsec == b.tv_nsec;
+}
+
+bool operator!=(const struct timespec& a, const struct timespec& b) {
+    return !(a == b);
+}
+
+TEST_P(IOTest, Touch) {
+    const std::string filename("/foo");
+
+    int ret;
+    struct fuse_file_info info;
+    info.flags = O_WRONLY;
+    ret = fs.create(filename.c_str(), 0600, &info);
+    EXPECT_EQ(0, ret);
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+
+    struct stat oldstat;
+    ret = fs.getattr(filename.c_str(), &oldstat);
+    EXPECT_EQ(0, ret);
+
+    // Set the time on the file.
+    struct timespec times[2] = {{0, 0}, {0, UTIME_OMIT}};
+    ret = fs.utimens(filename.c_str(), times);
+    EXPECT_EQ(0, ret);
+
+    struct stat newstat;
+    ret = fs.getattr(filename.c_str(), &newstat);
+    EXPECT_EQ(0, ret);
+
+    // Verify access time changed.
+    EXPECT_NE(oldstat.st_atim, newstat.st_atim);
+
+    // Verify modified time is unchanged.
+    EXPECT_EQ(oldstat.st_mtim, newstat.st_mtim);
+}
+
 TEST_P(IOTest, UnlinkFile) {
     const std::string filename("foo");
     const std::string full_filename("/" + filename);
