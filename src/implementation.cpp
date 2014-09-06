@@ -1055,7 +1055,7 @@ int asymmetricfs::unlink(const char *path_) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::unlink(relpath.c_str());
+    int ret = ::unlinkat(root_, relpath.c_str(), 0);
     if (ret != 0) {
         return -errno;
     }

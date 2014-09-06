@@ -1085,6 +1085,68 @@ TEST_P(IOTest, CreateSymlink) {
     EXPECT_EQ(target, buffer);
 }
 
+TEST_P(IOTest, UnlinkFile) {
+    const std::string filename("foo");
+    const std::string full_filename("/" + filename);
+
+    int ret;
+
+    // Touch a file.
+    {
+        struct fuse_file_info info;
+        info.flags = O_WRONLY;
+        ret = fs.create(full_filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        struct fuse_file_info info;
+        ret = fs.opendir("/", &info);
+        EXPECT_EQ(0, ret);
+
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISREG(buffer[filename].st_mode));
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Unlink
+    ret = fs.unlink(full_filename.c_str());
+    EXPECT_EQ(0, ret);
+
+    // Verify.
+    {
+        struct fuse_file_info info;
+        ret = fs.opendir("/", &info);
+        EXPECT_EQ(0, ret);
+
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(2u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+}
+
+TEST_P(IOTest, UnlinkInvalidFile) {
+    EXPECT_EQ(-ENOENT, fs.unlink("/foo"));
+}
+
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));
