@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 # Boost
-FIND_PACKAGE(Boost REQUIRED program_options system thread)
+FIND_PACKAGE(Boost REQUIRED program_options system)
 
 # FUSE
 FIND_LIBRARY(FUSE "fuse")

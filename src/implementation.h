@@ -19,18 +19,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/thread/mutex.hpp>
 #define _FILE_OFFSET_BITS 64
 #define FUSE_USE_VERSION 29
 #include <fuse.h>
 #include "gpg_recipient.h"
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
-class asymmetricfs : boost::noncopyable {
+class asymmetricfs {
 public:
-    typedef boost::mutex mutex_t;
-
     asymmetricfs();
     ~asymmetricfs();
 
@@ -97,7 +95,7 @@ private:
     /**
      * This protects all internal data structures.
      */
-    mutex_t mx_;
+    std::mutex mx_;
 
     fd_t next_;
     typedef std::unordered_map<std::string, fd_t> open_map_t;

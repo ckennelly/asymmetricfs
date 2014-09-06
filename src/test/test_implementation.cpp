@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include "gpg_helper.h"
 #include "implementation.h"
+#include <map>
 #include "test/temporary_directory.h"
 
 enum class IOMode {

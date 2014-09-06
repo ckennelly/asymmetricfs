@@ -24,8 +24,8 @@ namespace std { class type_info; }
 
 #include <sys/types.h>
 #include <attr/xattr.h>
-#include <boost/thread/locks.hpp>
 #include <cassert>
+#include <climits>
 #include <cstdlib>
 #include <dirent.h>
 #include "implementation.h"
@@ -35,7 +35,7 @@ namespace std { class type_info; }
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-typedef boost::unique_lock<asymmetricfs::mutex_t> scoped_lock;
+typedef std::unique_lock<std::mutex> scoped_lock;
 typedef std::vector<gpg_recipient> RecipientList;
 
 /**
