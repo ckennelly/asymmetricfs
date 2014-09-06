@@ -529,7 +529,7 @@ int asymmetricfs::mkdir(const char *path_, mode_t mode) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::mkdir(relpath.c_str(), mode);
+    int ret = ::mkdirat(root_, relpath.c_str(), mode);
     if (ret != 0) {
         return -errno;
     }
@@ -912,7 +912,7 @@ int asymmetricfs::rmdir(const char *path_) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::rmdir(relpath.c_str());
+    int ret = ::unlinkat(root_, relpath.c_str(), AT_REMOVEDIR);
     if (ret != 0) {
         return -errno;
     }

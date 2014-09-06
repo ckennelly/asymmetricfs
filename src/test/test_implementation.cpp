@@ -675,6 +675,66 @@ TEST_P(IOTest, ListEmptyDirectory) {
     EXPECT_EQ(0, ret);
 }
 
+TEST_P(IOTest, CreateRemoveDirectory) {
+    const std::string directory("foo");
+    const std::string full_directory("/" + directory);
+
+    int ret;
+    // Open directory.
+    struct fuse_file_info info;
+    ret = fs.opendir("/", &info);
+    EXPECT_EQ(0, ret);
+
+    // Read directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(2u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+    }
+
+    // mkdir
+    {
+        ret = fs.mkdir(full_directory.c_str(), 0700);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(3u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[directory].st_mode));
+    }
+
+    // rmdir
+    {
+        ret = fs.rmdir(full_directory.c_str());
+        EXPECT_EQ(0, ret);
+    }
+
+    // Read directory
+    {
+        stat_map buffer;
+        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
+        EXPECT_EQ(0, ret);
+        ASSERT_EQ(2u, buffer.size());
+
+        EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
+        EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
+    }
+
+    ret = fs.releasedir(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
 TEST_P(IOTest, Chmod) {
     const std::string filename("/test");
 
