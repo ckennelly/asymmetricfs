@@ -782,6 +782,33 @@ TEST_P(IOTest, ChownToRoot) {
     }
 }
 
+TEST_P(IOTest, StatWhileOpen) {
+    // We create a file and stat it by path (rather than descriptor) while
+    // keeping the descriptor open.
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    struct fuse_file_info info;
+    info.flags = O_CREAT | O_RDWR;
+    ret = fs.create(filename.c_str(), 0600, &info);
+    EXPECT_EQ(0, ret);
+    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+    EXPECT_EQ(contents.size(), ret);
+
+    // Stat
+    struct stat buf;
+    ret = fs.getattr(filename.c_str(), &buf);
+    EXPECT_EQ(0, ret);
+    EXPECT_EQ(contents.size(), buf.st_size);
+
+    // Release
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));
