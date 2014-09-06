@@ -270,7 +270,7 @@ int asymmetricfs::chmod(const char *path_, mode_t mode) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::chmod(relpath.c_str(), mode);
+    int ret = ::fchmodat(root_, relpath.c_str(), mode, 0);
     if (ret != 0) {
         return -errno;
     }
@@ -282,7 +282,7 @@ int asymmetricfs::chown(const char *path_, uid_t u, gid_t g) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::chown(relpath.c_str(), u, g);
+    int ret = ::fchownat(root_, relpath.c_str(), u, g, 0);
     if (ret != 0) {
         return -errno;
     }
