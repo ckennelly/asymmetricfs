@@ -86,7 +86,8 @@ protected:
 };
 
 asymmetricfs::internal::internal(const RecipientList & recipients) :
-        references(0), dirty(false), open_(true), recipients_(recipients) { }
+        references(0), buffer_set(false), dirty(false), open_(true),
+        recipients_(recipients) { }
 
 asymmetricfs::internal::~internal() {
     (void) close();
@@ -966,7 +967,13 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
     if (is_open) {
         return truncatefd(it->second, offset);
     } else if (offset == 0) {
-        int ret = ::truncate(relpath.c_str(), offset);
+        int fd = ::openat(root_, relpath.c_str(), O_WRONLY);
+        if (fd < 0) {
+            return -errno;
+        }
+
+        int ret = ::ftruncate(fd, offset);
+        ::close(fd);
         if (ret == 0) {
             return 0;
         } else {
@@ -975,13 +982,13 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
     } else if (read_) {
         /* Decrypt, truncate, encrypt. */
         const int flags = O_RDWR;
-        int ret = ::open(relpath.c_str(), flags);
-        if (ret < 0) {
+        int fd = ::openat(root_, relpath.c_str(), flags);
+        if (fd < 0) {
             return -errno;
         }
 
         internal data(recipients_);
-        data.fd         = ret;
+        data.fd         = fd;
         data.flags      = flags;
         data.path       = path;
         /* data is transient and does not escape our scope. */
@@ -992,11 +999,15 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
             return -load_ret;
         }
 
+        // Rewind, so when we write out the newly resized buffer, we clobber the
+        // old file contents.
+        ::lseek(fd, 0, SEEK_SET);
+
         assert(data.buffer_set);
         data.buffer.resize(static_cast<size_t>(offset));
         data.dirty = true;
 
-        ret = data.close();
+        int ret = data.close();
         if (ret == 0) {
             return 0;
         } else {

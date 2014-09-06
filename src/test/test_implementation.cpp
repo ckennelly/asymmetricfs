@@ -472,6 +472,150 @@ TEST_P(IOTest, TruncatePartial) {
     }
 }
 
+TEST_P(IOTest, TruncatePathZeroInvalidFile) {
+    const std::string filename("/test");
+    int ret = fs.truncate(filename.c_str(), 0);
+    EXPECT_EQ(-ENOENT, ret);
+}
+
+TEST_P(IOTest, TruncatePathPartialInvalidFile) {
+    const std::string filename("/test");
+    int ret = fs.truncate(filename.c_str(), 3);
+    if (GetParam() == IOMode::ReadWrite) {
+        EXPECT_EQ(-ENOENT, ret);
+    } else {
+        EXPECT_EQ(-EACCES, ret);
+    }
+}
+
+TEST_P(IOTest, TruncatePathInvalidOffset) {
+    const std::string filename("/test");
+    int ret = fs.truncate(filename.c_str(), -1);
+    EXPECT_EQ(-EINVAL, ret);
+}
+
+TEST_P(IOTest, TruncatePath) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Touch a file and write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat file
+    struct stat buf;
+    ret = fs.getattr(filename.c_str(), &buf);
+    EXPECT_EQ(0, ret);
+    EXPECT_LT(0, buf.st_size);
+
+    // Truncate by path.
+    ret = fs.truncate(filename.c_str(), 0);
+    EXPECT_EQ(0, ret);
+
+    // Stat file.
+    ret = fs.getattr(filename.c_str(), &buf);
+    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, buf.st_size);
+}
+
+TEST_P(IOTest, TruncatePathPartial) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+    const off_t offset = 3;
+
+    // Touch a file and write to it.
+    {
+        struct fuse_file_info info;
+        info.flags = O_CREAT | O_RDWR;
+        ret = fs.create(filename.c_str(), 0600, &info);
+        EXPECT_EQ(0, ret);
+        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+        EXPECT_EQ(contents.size(), ret);
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    }
+
+    // Stat file
+    struct stat buf;
+    ret = fs.getattr(filename.c_str(), &buf);
+    EXPECT_EQ(0, ret);
+    EXPECT_LT(0, buf.st_size);
+
+    // Truncate by path.
+    ret = fs.truncate(filename.c_str(), offset);
+    if (GetParam() == IOMode::ReadWrite) {
+        EXPECT_EQ(0, ret);
+
+        // Verify file contents.
+        struct fuse_file_info info;
+        info.flags = O_RDONLY;
+        ret = fs.open(filename.c_str(), &info);
+        EXPECT_EQ(0, ret);
+
+        ret = fs.fgetattr(nullptr, &buf, &info);
+        EXPECT_EQ(0, ret);
+        EXPECT_EQ(offset, buf.st_size);
+
+        std::string buffer(1 << 16, '\0');
+        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
+        EXPECT_EQ(offset, ret);
+        buffer.resize(offset);
+        EXPECT_EQ(contents.substr(0, offset), buffer);
+
+        ret = fs.release(nullptr, &info);
+        EXPECT_EQ(0, ret);
+    } else {
+        EXPECT_EQ(-EACCES, ret);
+    }
+}
+
+
+TEST_P(IOTest, TruncatePathOpenFile) {
+    int ret;
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    // Open a test file in the filesystem, write to it.
+    struct fuse_file_info info;
+    info.flags = O_CREAT | O_RDWR;
+    ret = fs.create(filename.c_str(), 0600, &info);
+    EXPECT_EQ(0, ret);
+    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
+    EXPECT_EQ(contents.size(), ret);
+
+    // Stat file
+    struct stat buf;
+    ret = fs.fgetattr(nullptr, &buf, &info);
+    EXPECT_EQ(0, ret);
+    EXPECT_EQ(contents.size(), buf.st_size);
+
+    // Truncate by path.
+    ret = fs.truncate(filename.c_str(), 0);
+    EXPECT_EQ(0, ret);
+
+    // Stat file.
+    ret = fs.fgetattr(nullptr, &buf, &info);
+    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, buf.st_size);
+
+    // Release
+    ret = fs.release(nullptr, &info);
+    EXPECT_EQ(0, ret);
+}
+
 typedef std::map<std::string, struct stat> stat_map;
 
 static int filler(
