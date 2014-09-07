@@ -517,7 +517,13 @@ int asymmetricfs::listxattr(const char *path_, char *buffer, size_t size) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    ssize_t ret = ::listxattr(relpath.c_str(), buffer, size);
+    int fd = ::openat(root_, relpath.c_str(), O_PATH);
+    if (fd < 0) {
+        return errno;
+    }
+
+    ssize_t ret = ::flistxattr(fd, buffer, size);
+    ::close(fd);
     if (ret != 0) {
         return -errno;
     }
@@ -839,7 +845,13 @@ int asymmetricfs::removexattr(const char *path_, const char *name) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::removexattr(relpath.c_str(), name);
+    int fd = ::openat(root_, relpath.c_str(), O_PATH);
+    if (fd < 0) {
+        return -errno;
+    }
+
+    int ret = ::fremovexattr(fd, name);
+    ::close(fd);
     if (ret != 0) {
         return -errno;
     }
@@ -900,7 +912,13 @@ int asymmetricfs::setxattr(const char *path_, const char *name,
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int ret = ::setxattr(relpath.c_str(), name, value, size, flags);
+    int fd = ::openat(root_, relpath.c_str(), O_PATH);
+    if (fd < 0) {
+        return -errno;
+    }
+
+    int ret = ::fsetxattr(fd, name, value, size, flags);
+    ::close(fd);
     if (ret != 0) {
         return -errno;
     }
