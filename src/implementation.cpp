@@ -377,12 +377,6 @@ int asymmetricfs::truncatefd(fd_t fd, off_t offset) {
 void* asymmetricfs::init(struct fuse_conn_info *conn) {
     (void) conn;
 
-    assert(root_set_);
-    int ret = fchdir(root_);
-    if (ret != 0) {
-        throw std::runtime_error("Unable to chdir.");
-    }
-
     return NULL;
 }
 
