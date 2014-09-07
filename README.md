@@ -23,8 +23,3 @@ For security-sensitive applications, the functionality of `asymmetricfs` may eas
 Metadata is not protected by `asymmetricfs`.
 
 As with any use of encryption, keeping good backups is crucial.
-
-Future Work
-===========
-
-* `asymmetricfs` currently uses string buffers to store dirty data before encrypting and flushing to disk.  In the future, these buffers will be maintained in a page-aware container as to permit copy-free transfers into `gpg`.
