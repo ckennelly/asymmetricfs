@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
 #include <gtest/gtest.h>
-#include "gpg_helper.h"
 #include "implementation.h"
+#include <iostream>
 #include <map>
+#include "test/gpg_helper.h"
 #include "test/temporary_directory.h"
 #include <time.h>
 
@@ -65,9 +65,82 @@ protected:
         unsetenv("GNUPGHOME");
     }
 
+    int access(const std::string& path, int mode) {
+        return fs.access(path.c_str(), mode);
+    }
+
+    int getattr(const std::string& path, struct stat* buf) {
+        return fs.getattr(path.c_str(), buf);
+    }
+
+    int truncate(const std::string& path, off_t offset) {
+        return fs.truncate(path.c_str(), offset);
+    }
+
     temporary_directory backing;
     gnupg_key key;
     asymmetricfs fs;
+};
+
+class scoped_file {
+public:
+    // Opens the file at path in the filesystem, using the flags specified at
+    // info->flags.  If O_CREAT is set, create() is called in the underlying
+    // filesystem using mode 0600.
+    scoped_file(asymmetricfs& fs, const std::string& filename, int flags) :
+            fs_(fs) {
+        int ret;
+
+        info.flags = flags;
+        if (flags & O_CREAT) {
+            ret = fs_.create(filename.c_str(), 0600, &info);
+        } else {
+            ret = fs_.open(filename.c_str(), &info);
+        }
+        EXPECT_EQ(0, ret);
+    }
+
+    std::string read(off_t offset = 0, size_t max_size = 1 << 16) {
+        std::string buffer;
+        EXPECT_LE(0, read(&buffer, offset, max_size));
+        return buffer;
+    }
+
+    int read(std::string* buffer, off_t offset = 0, size_t max_size = 1 << 16) {
+        buffer->resize(max_size, '\0');
+        int ret = fs_.read(nullptr, &(*buffer)[0], max_size, offset, &info);
+        if (ret >= 0) {
+            EXPECT_GE(max_size, ret);
+            if (size_t(ret) <= max_size) {
+                buffer->resize(ret);
+            }
+        }
+        return ret;
+    }
+
+    void stat(struct stat* buf) {
+        ASSERT_EQ(0, fs_.fgetattr(nullptr, buf, &info));
+    }
+
+    int truncate(off_t offset) {
+        return fs_.ftruncate(nullptr, offset, &info);
+    }
+
+    void write(const std::string& data) {
+        ASSERT_EQ(data.size(),
+                  fs_.write(nullptr, data.data(), data.size(), 0, &info));
+    }
+
+    ~scoped_file() {
+        (void) fs_.release(nullptr, &info);
+    }
+
+    fuse_file_info info;
+private:
+    asymmetricfs& fs_;
+
+    scoped_file(const scoped_file&) = delete;
+    scoped_file& operator=(const scoped_file&) = delete;
 };
 
 TEST_P(IOTest, Access) {
@@ -76,17 +149,11 @@ TEST_P(IOTest, Access) {
     const std::string file_closed("/foo");
     const std::string file_open  ("/bar");
 
-    struct fuse_file_info info;
-    int ret;
-    info.flags = O_CREAT | O_RDWR;
-    ret = fs.create(file_closed.c_str(), 0600, &info);
-    EXPECT_EQ(0, ret);
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
+    {
+        scoped_file c(fs, file_closed, O_CREAT | O_RDWR);
+    }
 
-    ret = fs.create(file_open.c_str(), 0700, &info);
-    EXPECT_EQ(0, ret);
-
+    scoped_file o(fs, file_open, O_CREAT | O_RDWR);
     for (int i = 0; i < 4; i++) {
         SCOPED_TRACE(i);
 
@@ -114,20 +181,13 @@ TEST_P(IOTest, Access) {
         }
 
         // Check access permissions for both files.
-        ret = fs.access(file_closed.c_str(), mode);
-        EXPECT_EQ(expected_closed, ret);
-
-        ret = fs.access(file_open.c_str(), mode);
-        EXPECT_EQ(expected_open, ret);
+        EXPECT_EQ(expected_closed, access(file_closed, mode));
+        EXPECT_EQ(expected_open, access(file_open, mode));
     }
-
-    // Close file_open.
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, AccessInvalidFile) {
-    EXPECT_EQ(-ENOENT, fs.access("/foo", W_OK | X_OK));
+    EXPECT_EQ(-ENOENT, access("/foo", W_OK | X_OK));
 }
 
 TEST_P(IOTest, ReadInvalidDescriptor) {
@@ -138,40 +198,23 @@ TEST_P(IOTest, ReadInvalidDescriptor) {
 }
 
 TEST_P(IOTest, ReadWrite) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
     // Open a test file in the filesystem, write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
 
         // Verify the contents are there before closing.
-        std::string buffer(1 << 16, '\0');
-        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
-        ASSERT_EQ(contents.size(), ret);
-        buffer.resize(ret);
-        EXPECT_EQ(contents, buffer);
-
-        // Close the file.
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents, f.read());
     }
 
     // Reopen and verify contents.
     {
-        struct fuse_file_info info;
-        info.flags = 0;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, 0);
 
-        std::string buffer(1 << 16, '\0');
-        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
+        std::string buffer;
+        int ret = f.read(&buffer);
         if (GetParam() == IOMode::ReadWrite) {
             ASSERT_EQ(contents.size(), ret);
             buffer.resize(ret);
@@ -179,9 +222,6 @@ TEST_P(IOTest, ReadWrite) {
         } else {
             EXPECT_EQ(-EACCES, ret);
         }
-
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 }
 
@@ -194,88 +234,46 @@ TEST_P(IOTest, WriteInvalidDescriptor) {
 }
 
 TEST_P(IOTest, WriteZeroBytes) {
-    int ret;
-
-    const std::string filename("/test");
-    struct fuse_file_info info;
-    info.flags = O_CREAT | O_RDWR;
-    ret = fs.create(filename.c_str(), 0600, &info);
+    scoped_file f(fs, "/test", O_CREAT | O_RDWR);
 
     char buf[16];
-    ret = fs.write(nullptr, buf, 0, 0, &info);
-    EXPECT_EQ(0, ret);
-
-    ret = fs.release(nullptr, &info);
+    int ret = fs.write(nullptr, buf, 0, 0, &f.info);
     EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, WriteInvalidOffset) {
-    int ret;
-
-    const std::string filename("/test");
-
-    struct fuse_file_info info;
-    info.flags = O_CREAT | O_RDWR;
-    ret = fs.create(filename.c_str(), 0600, &info);
+    scoped_file f(fs, "/test", O_CREAT | O_RDWR);
 
     char buf[16];
-    ret = fs.write(nullptr, buf, sizeof(buf), -1, &info);
+    int ret = fs.write(nullptr, buf, sizeof(buf), -1, &f.info);
     EXPECT_EQ(-EINVAL, ret);
-
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, Append) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents1("abcdefg");
     const std::string contents2("hijklmn");
     // Open a test file in the filesystem, write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents1.data(), contents1.size(), 0, &info);
-        EXPECT_EQ(contents1.size(), ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents1);
 
         // Verify the contents are there before closing.
-        std::string buffer(1 << 16, '\0');
-        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
-        ASSERT_EQ(contents1.size(), ret);
-        buffer.resize(ret);
-        EXPECT_EQ(contents1, buffer);
-
-        // Close the file.
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents1, f.read());
     }
 
     // Append to test file.
     {
-        struct fuse_file_info info;
-        info.flags = O_APPEND | O_WRONLY;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
-
-        ret = fs.write(nullptr, contents2.data(), contents2.size(), 0, &info);
-        EXPECT_EQ(contents2.size(), ret);
-
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_APPEND | O_WRONLY);
+        f.write(contents2);
     }
 
     // Reopen and verify contents.
     {
-        struct fuse_file_info info;
-        info.flags = 0;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, 0);
 
-        std::string buffer(1 << 16, '\0');
-        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
+        std::string buffer;
+        int ret = f.read(&buffer);
         if (GetParam() == IOMode::ReadWrite) {
             ASSERT_EQ(contents1.size() + contents2.size(), ret);
             buffer.resize(ret);
@@ -283,44 +281,22 @@ TEST_P(IOTest, Append) {
         } else {
             EXPECT_EQ(-EACCES, ret);
         }
-
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 }
 
 TEST_P(IOTest, TwoHandles) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Open a test file in the filesystem, write to it.
-    struct fuse_file_info info[2];
-    info[0].flags = O_CREAT | O_RDWR;
-    ret = fs.create(filename.c_str(), 0600, &info[0]);
-    EXPECT_EQ(0, ret);
-    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info[0]);
-    EXPECT_EQ(contents.size(), ret);
+    scoped_file f0(fs, filename, O_CREAT | O_RDWR);
+    f0.write(contents);
 
     // Open the file a second time.
-    info[1].flags = O_RDONLY;
-    ret = fs.open(filename.c_str(), &info[1]);
-    EXPECT_EQ(0, ret);
+    scoped_file f1(fs, filename, O_RDONLY);
 
     // Verify the content from second handle.
-    std::string buffer(1 << 16, '\0');
-    ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info[1]);
-    ASSERT_EQ(contents.size(), ret);
-    buffer.resize(ret);
-    EXPECT_EQ(contents, buffer);
-
-    // Close the files.
-    ret = fs.release(nullptr, &info[0]);
-    EXPECT_EQ(0, ret);
-
-    ret = fs.release(nullptr, &info[1]);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(contents, f1.read());
 }
 
 TEST_P(IOTest, TruncateInvalidDescriptor) {
@@ -331,68 +307,43 @@ TEST_P(IOTest, TruncateInvalidDescriptor) {
 }
 
 TEST_P(IOTest, TruncateInvalidOffset) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Open a test file in the filesystem, write to it.
-    struct fuse_file_info info;
-    info.flags = O_CREAT | O_RDWR;
-    ret = fs.create(filename.c_str(), 0600, &info);
-    EXPECT_EQ(0, ret);
-    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-    EXPECT_EQ(contents.size(), ret);
+    scoped_file f(fs, filename, O_CREAT | O_RDWR);
+    f.write(contents);
 
     // Truncate at an invalid offset.
-    ret = fs.ftruncate(nullptr, -1, &info);
-    EXPECT_EQ(-EINVAL, ret);
-
-    // Release
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(-EINVAL, f.truncate(-1));
 }
 
 TEST_P(IOTest, TruncateZeroFromCreation) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Open a test file in the filesystem, write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
 
         // Stat file
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(contents.size(), buf.st_size);
 
         // Truncate
-        ret = fs.ftruncate(nullptr, 0, &info);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, f.truncate(0));
 
         // Re-stat.
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(0, buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Re-stat.
     {
         struct stat buf;
-        ret = fs.getattr(filename.c_str(), &buf);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(filename, &buf));
         EXPECT_LE(0, buf.st_size); // getattr returns the size on-disk, rather
                                    // than decrypted.  TODO:  Do not write
                                    // empty files.
@@ -400,148 +351,93 @@ TEST_P(IOTest, TruncateZeroFromCreation) {
 
     // Re-open if in ReadWrite mode.
     if (GetParam() == IOMode::ReadWrite) {
-        struct fuse_file_info info;
-        info.flags = O_RDONLY;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_RDONLY);
 
         // Re-stat.
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(0, buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 }
 
 TEST_P(IOTest, TruncateZeroFromExisting) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Open a test file in the filesystem, write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
 
         // Stat file
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(contents.size(), buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Re-open, truncate.
     {
-        struct fuse_file_info info;
-        info.flags = O_WRONLY;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_WRONLY);
 
         // Truncate
-        ret = fs.ftruncate(nullptr, 0, &info);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, f.truncate(0));
 
         // Re-stat.
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(0, buf.st_size);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 }
 
 TEST_P(IOTest, TruncatePartial) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
     off_t offset = 3;
 
     // Open a test file in the filesystem, write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
 
         // Stat file
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(contents.size(), buf.st_size);
 
         // Truncate
-        ret = fs.ftruncate(nullptr, offset, &info);
+        int ret = f.truncate(offset);
         if (GetParam() == IOMode::ReadWrite) {
             EXPECT_EQ(0, ret);
 
             // Re-stat.
-            ret = fs.fgetattr(nullptr, &buf, &info);
-            EXPECT_EQ(0, ret);
+            f.stat(&buf);
             EXPECT_EQ(offset, buf.st_size);
         } else {
             // TODO:  Permit truncations of newly created files.
             EXPECT_EQ(-EACCES, ret);
         }
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Re-open.
     if (GetParam() == IOMode::ReadWrite) {
-        struct fuse_file_info info;
-        info.flags = O_RDONLY;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_RDONLY);
 
         // Re-stat.
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_EQ(offset, buf.st_size);
 
         // Read contents.
-        std::string buffer(1 << 16, '\0');
-        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
-        ASSERT_EQ(offset, ret);
-        buffer.resize(ret);
-        EXPECT_EQ(contents.substr(0, offset), buffer);
-
-        // Release
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.substr(0, offset), f.read());
     }
 }
 
 TEST_P(IOTest, TruncatePathZeroInvalidFile) {
-    const std::string filename("/test");
-    int ret = fs.truncate(filename.c_str(), 0);
-    EXPECT_EQ(-ENOENT, ret);
+    EXPECT_EQ(-ENOENT, truncate("/test", 0));
 }
 
 TEST_P(IOTest, TruncatePathPartialInvalidFile) {
-    const std::string filename("/test");
-    int ret = fs.truncate(filename.c_str(), 3);
+    int ret = truncate("/test", 3);
     if (GetParam() == IOMode::ReadWrite) {
         EXPECT_EQ(-ENOENT, ret);
     } else {
@@ -550,42 +446,29 @@ TEST_P(IOTest, TruncatePathPartialInvalidFile) {
 }
 
 TEST_P(IOTest, TruncatePathInvalidOffset) {
-    const std::string filename("/test");
-    int ret = fs.truncate(filename.c_str(), -1);
-    EXPECT_EQ(-EINVAL, ret);
+    EXPECT_EQ(-EINVAL, truncate("/test", -1));
 }
 
 TEST_P(IOTest, TruncatePath) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Touch a file and write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
     }
 
     // Stat file
     struct stat buf;
-    ret = fs.getattr(filename.c_str(), &buf);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, getattr(filename, &buf));
     EXPECT_LT(0, buf.st_size);
 
     // Truncate by path.
-    ret = fs.truncate(filename.c_str(), 0);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, truncate(filename, 0));
 
     // Stat file.
-    ret = fs.getattr(filename.c_str(), &buf);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, getattr(filename, &buf));
     EXPECT_EQ(0, buf.st_size);
 }
 
@@ -598,83 +481,50 @@ TEST_P(IOTest, TruncatePathPartial) {
 
     // Touch a file and write to it.
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_RDWR;
-        ret = fs.create(filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-        EXPECT_EQ(contents.size(), ret);
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
     }
 
     // Stat file
     struct stat buf;
-    ret = fs.getattr(filename.c_str(), &buf);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, getattr(filename, &buf));
     EXPECT_LT(0, buf.st_size);
 
     // Truncate by path.
-    ret = fs.truncate(filename.c_str(), offset);
+    ret = truncate(filename, offset);
     if (GetParam() == IOMode::ReadWrite) {
         EXPECT_EQ(0, ret);
 
         // Verify file contents.
-        struct fuse_file_info info;
-        info.flags = O_RDONLY;
-        ret = fs.open(filename.c_str(), &info);
-        EXPECT_EQ(0, ret);
-
-        ret = fs.fgetattr(nullptr, &buf, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_RDONLY);
+        f.stat(&buf);
         EXPECT_EQ(offset, buf.st_size);
 
-        std::string buffer(1 << 16, '\0');
-        ret = fs.read(nullptr, &buffer[0], buffer.size(), 0, &info);
-        EXPECT_EQ(offset, ret);
-        buffer.resize(offset);
-        EXPECT_EQ(contents.substr(0, offset), buffer);
-
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(contents.substr(0, offset), f.read());
     } else {
         EXPECT_EQ(-EACCES, ret);
     }
 }
 
-
 TEST_P(IOTest, TruncatePathOpenFile) {
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Open a test file in the filesystem, write to it.
-    struct fuse_file_info info;
-    info.flags = O_CREAT | O_RDWR;
-    ret = fs.create(filename.c_str(), 0600, &info);
-    EXPECT_EQ(0, ret);
-    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-    EXPECT_EQ(contents.size(), ret);
+    scoped_file f(fs, filename, O_CREAT | O_RDWR);
+    f.write(contents);
 
     // Stat file
     struct stat buf;
-    ret = fs.fgetattr(nullptr, &buf, &info);
-    EXPECT_EQ(0, ret);
+    f.stat(&buf);
     EXPECT_EQ(contents.size(), buf.st_size);
 
     // Truncate by path.
-    ret = fs.truncate(filename.c_str(), 0);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, truncate(filename, 0));
 
     // Stat file.
-    ret = fs.fgetattr(nullptr, &buf, &info);
-    EXPECT_EQ(0, ret);
+    f.stat(&buf);
     EXPECT_EQ(0, buf.st_size);
-
-    // Release
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
 }
 
 typedef std::map<std::string, struct stat> stat_map;
@@ -711,13 +561,7 @@ TEST_P(IOTest, ListEmptyDirectory) {
     // Touch a file.
     const std::string filename("foo");
     {
-        struct fuse_file_info finfo;
-        finfo.flags = O_WRONLY;
-        ret = fs.create(("/" + filename).c_str(), 0600, &finfo);
-        EXPECT_EQ(0, ret);
-
-        ret = fs.release(nullptr, &finfo);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, "/" + filename, O_CREAT | O_WRONLY);
     }
 
     // Reread directory
@@ -805,35 +649,24 @@ TEST_P(IOTest, Chmod) {
     const mode_t mask = GetParam() == IOMode::ReadWrite ? 07777 : 07333;
 
     // Touch
-    int ret;
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_WRONLY;
-        ret = fs.create(filename.c_str(), initial, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
     }
 
     // Stat
     {
         struct stat buf;
-        ret = fs.getattr(filename.c_str(), &buf);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(filename, &buf));
         EXPECT_EQ(initial & mask, buf.st_mode & 07777);
     }
 
     // Chmod
-    {
-        ret = fs.chmod(filename.c_str(), final);
-        EXPECT_EQ(0, ret);
-    }
+    EXPECT_EQ(0, fs.chmod(filename.c_str(), final));
 
     // Stat
     {
         struct stat buf;
-        ret = fs.getattr(filename.c_str(), &buf);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(filename, &buf));
         EXPECT_EQ(final & mask, buf.st_mode & 07777);
     }
 }
@@ -844,19 +677,13 @@ TEST_P(IOTest, Chown) {
     // Touch
     int ret;
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_WRONLY;
-        ret = fs.create(filename.c_str(), 0777, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
     }
 
     // Stat
     struct stat buf;
     {
-        ret = fs.getattr(filename.c_str(), &buf);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(filename, &buf));
     }
 
     // Chown (to the same values).
@@ -868,8 +695,7 @@ TEST_P(IOTest, Chown) {
     // Verify unchanged permissions.
     {
         struct stat buf2;
-        ret = fs.getattr(filename.c_str(), &buf2);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(filename, &buf2));
         EXPECT_EQ(buf.st_uid, buf2.st_uid);
         EXPECT_EQ(buf.st_gid, buf2.st_gid);
     }
@@ -879,28 +705,16 @@ TEST_P(IOTest, ChownToRoot) {
     const std::string filename("/test");
 
     // Touch
-    int ret;
     {
-        struct fuse_file_info info;
-        info.flags = O_CREAT | O_WRONLY;
-        ret = fs.create(filename.c_str(), 0777, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
     }
 
     // Stat
     struct stat buf;
-    {
-        ret = fs.getattr(filename.c_str(), &buf);
-        EXPECT_EQ(0, ret);
-    }
+    EXPECT_EQ(0, getattr(filename, &buf));
 
     // Chown (to root).
-    {
-        ret = fs.chown(filename.c_str(), 0, 0);
-        EXPECT_EQ(-EPERM, ret);
-    }
+    EXPECT_EQ(-EPERM, fs.chown(filename.c_str(), 0, 0));
 }
 
 TEST_P(IOTest, Rename) {
@@ -914,13 +728,7 @@ TEST_P(IOTest, Rename) {
 
     // Touch a file.
     {
-        struct fuse_file_info finfo;
-        finfo.flags = O_WRONLY;
-        ret = fs.create(full_oldname.c_str(), 0600, &finfo);
-        EXPECT_EQ(0, ret);
-
-        ret = fs.release(nullptr, &finfo);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, full_oldname, O_CREAT | O_WRONLY);
     }
 
     // Read directory
@@ -972,11 +780,9 @@ TEST_P(IOTest, Rename) {
     // Stat files
     {
         struct stat buf;
-        ret = fs.getattr(full_oldname.c_str(), &buf);
-        EXPECT_EQ(-ENOENT, ret);
+        EXPECT_EQ(-ENOENT, getattr(full_oldname, &buf));
 
-        ret = fs.getattr(full_newname.c_str(), &buf);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(full_newname, &buf));
         EXPECT_TRUE(S_ISREG(buf.st_mode));
         EXPECT_EQ(0, buf.st_size);
     }
@@ -992,10 +798,7 @@ TEST_P(IOTest, RenameOpenFile) {
     int ret;
 
     // Touch a file.
-    struct fuse_file_info finfo;
-    finfo.flags = O_WRONLY;
-    ret = fs.create(full_oldname.c_str(), 0600, &finfo);
-    EXPECT_EQ(0, ret);
+    scoped_file f(fs, full_oldname, O_CREAT | O_WRONLY);
 
     // Read directory
     {
@@ -1046,11 +849,9 @@ TEST_P(IOTest, RenameOpenFile) {
     // Stat files via path.
     {
         struct stat buf;
-        ret = fs.getattr(full_oldname.c_str(), &buf);
-        EXPECT_EQ(-ENOENT, ret);
+        EXPECT_EQ(-ENOENT, getattr(full_oldname, &buf));
 
-        ret = fs.getattr(full_newname.c_str(), &buf);
-        EXPECT_EQ(0, ret);
+        EXPECT_EQ(0, getattr(full_newname, &buf));
         EXPECT_TRUE(S_ISREG(buf.st_mode));
         EXPECT_EQ(0, buf.st_size);
     }
@@ -1058,41 +859,26 @@ TEST_P(IOTest, RenameOpenFile) {
     // Stat files via descriptor.
     {
         struct stat buf;
-        ret = fs.fgetattr(nullptr, &buf, &finfo);
-        EXPECT_EQ(0, ret);
+        f.stat(&buf);
         EXPECT_TRUE(S_ISREG(buf.st_mode));
         EXPECT_EQ(0, buf.st_size);
     }
-
-    ret = fs.release(nullptr, &finfo);
-    EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, StatWhileOpen) {
     // We create a file and stat it by path (rather than descriptor) while
     // keeping the descriptor open.
-    int ret;
-
     const std::string filename("/test");
     const std::string contents("abcdefg");
 
     // Open a test file in the filesystem, write to it.
-    struct fuse_file_info info;
-    info.flags = O_CREAT | O_RDWR;
-    ret = fs.create(filename.c_str(), 0600, &info);
-    EXPECT_EQ(0, ret);
-    ret = fs.write(nullptr, contents.data(), contents.size(), 0, &info);
-    EXPECT_EQ(contents.size(), ret);
+    scoped_file f(fs, filename, O_CREAT | O_RDWR);
+    f.write(contents);
 
     // Stat
     struct stat buf;
-    ret = fs.getattr(filename.c_str(), &buf);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, getattr(filename, &buf));
     EXPECT_EQ(contents.size(), buf.st_size);
-
-    // Release
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, CreateSymlink) {
@@ -1158,16 +944,12 @@ TEST_P(IOTest, Touch) {
     const std::string filename("/foo");
 
     int ret;
-    struct fuse_file_info info;
-    info.flags = O_WRONLY;
-    ret = fs.create(filename.c_str(), 0600, &info);
-    EXPECT_EQ(0, ret);
-    ret = fs.release(nullptr, &info);
-    EXPECT_EQ(0, ret);
+    {
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
+    }
 
     struct stat oldstat;
-    ret = fs.getattr(filename.c_str(), &oldstat);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, getattr(filename, &oldstat));
 
     // Set the time on the file.
     struct timespec times[2] = {{0, 0}, {0, UTIME_OMIT}};
@@ -1175,8 +957,7 @@ TEST_P(IOTest, Touch) {
     EXPECT_EQ(0, ret);
 
     struct stat newstat;
-    ret = fs.getattr(filename.c_str(), &newstat);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(0, getattr(filename, &newstat));
 
     // Verify access time changed.
     EXPECT_NE(oldstat.st_atim, newstat.st_atim);
@@ -1193,12 +974,7 @@ TEST_P(IOTest, UnlinkFile) {
 
     // Touch a file.
     {
-        struct fuse_file_info info;
-        info.flags = O_WRONLY;
-        ret = fs.create(full_filename.c_str(), 0600, &info);
-        EXPECT_EQ(0, ret);
-        ret = fs.release(nullptr, &info);
-        EXPECT_EQ(0, ret);
+        scoped_file f(fs, full_filename, O_CREAT | O_WRONLY);
     }
 
     // Read directory
