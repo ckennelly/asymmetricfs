@@ -27,6 +27,7 @@ namespace std { class type_info; }
 #include "implementation.h"
 #include <iostream>
 #include <stdexcept>
+#include <sys/prctl.h>
 
 static asymmetricfs impl;
 
@@ -161,6 +162,8 @@ int main(int argc, char **argv) {
 
     po::options_description hidden("Hidden Options");
     hidden.add_options()
+        ("enable-core-dumps", po::value<bool>()->zero_tokens(),
+            "Enable core dumps / debugging")
         ("target",      po::value<std::string>(&target), "Backing directory")
         ("mount-point", po::value<std::string>(&mount_point), "Mount point");
 
@@ -278,6 +281,17 @@ int main(int argc, char **argv) {
     ops.flag_nullpath_ok = 1;
     ops.flag_nopath = 1;
     ops.flag_utime_omit_ok = 1;
+
+    // Disable core dumps.
+    if (vm.count("enable-core-dumps") == 0) {
+        int ret = prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+        if (ret == -1) {
+            std::cerr << "Unable to disable core dumps." << std::endl
+                      << "Run with --enable-core-dumps to continue without "
+                         "this measure." << std::endl;
+            return 1;
+        }
+    }
 
     return fuse_main(fuse_argc, fuse_argv.data(), &ops, NULL);
 }
