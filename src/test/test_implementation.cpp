@@ -936,6 +936,22 @@ TEST_P(IOTest, RenameOpenFile) {
     }
 }
 
+TEST_P(IOTest, StatInvalidArgument) {
+    scoped_file f(fs, "/test", O_CREAT | O_RDWR);
+    EXPECT_EQ(-EFAULT, fs.fgetattr(nullptr, nullptr, &f.info));
+}
+
+TEST_P(IOTest, StatPathInvalidArgument) {
+    EXPECT_EQ(-EFAULT, fs.getattr("/test", nullptr));
+}
+
+TEST_P(IOTest, StatInvalidDescriptor) {
+    struct fuse_file_info info;
+    struct stat buf;
+    info.fh = -1;
+    EXPECT_EQ(-EBADF, fs.fgetattr(nullptr, &buf, &info));
+}
+
 TEST_P(IOTest, StatWhileOpen) {
     // We create a file and stat it by path (rather than descriptor) while
     // keeping the descriptor open.
