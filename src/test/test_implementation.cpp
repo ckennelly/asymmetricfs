@@ -22,6 +22,7 @@
 #include "implementation.h"
 #include <map>
 #include "test/temporary_directory.h"
+#include <time.h>
 
 enum class IOMode {
     ReadWrite,
