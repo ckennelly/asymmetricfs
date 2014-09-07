@@ -734,6 +734,20 @@ TEST_P(IOTest, ChownToRoot) {
     EXPECT_EQ(-EPERM, fs.chown(filename.c_str(), 0, 0));
 }
 
+TEST_P(IOTest, CreateExisting) {
+    const std::string filename("/foo");
+    const int flags = O_CREAT | O_EXCL | O_WRONLY;
+    {
+        scoped_file f(fs, filename, flags);
+    }
+
+    {
+        struct fuse_file_info info;
+        info.flags = flags;
+        EXPECT_EQ(-EEXIST, fs.create(filename.c_str(), 0600, &info));
+    }
+}
+
 TEST_P(IOTest, Rename) {
     const std::string oldname("foo");
     const std::string newname("bar");
@@ -802,6 +816,46 @@ TEST_P(IOTest, Rename) {
         EXPECT_EQ(0, getattr(full_newname, &buf));
         EXPECT_TRUE(S_ISREG(buf.st_mode));
         EXPECT_EQ(0, buf.st_size);
+    }
+}
+
+TEST_P(IOTest, OpenWriteOnlyFile) {
+    // We create a file and then modify the underlying backing filesystem to
+    // make the actual contents write-only.  asymmetricfs normally tries to
+    // open files for reading as well, but reattempts on failure.
+    const std::string filename("/foo");
+    {
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
+    }
+
+    EXPECT_EQ(0, fs.chmod(filename.c_str(), 0200));
+
+    {
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
+    }
+}
+
+TEST_P(IOTest, OpenInaccessibleFile) {
+    // We create a file and then modify the underlying backing filesystem to
+    // make the actual contents inaccessible.  asymmetricfs normally tries to
+    // open files for reading as well, but reattempts on failure.
+    const std::string filename("/foo");
+    {
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
+    }
+
+    EXPECT_EQ(0, fs.chmod(filename.c_str(), 0000));
+
+    {
+        struct fuse_file_info info;
+        info.flags = O_WRONLY;
+        EXPECT_EQ(-EACCES, fs.open(filename.c_str(), &info));
+
+        info.flags = O_RDONLY;
+        EXPECT_EQ(-EACCES, fs.open(filename.c_str(), &info));
+
+        info.flags = O_RDWR;
+        EXPECT_EQ(-EACCES, fs.open(filename.c_str(), &info));
     }
 }
 
