@@ -688,6 +688,10 @@ TEST_P(IOTest, Chmod) {
     }
 }
 
+TEST_P(IOTest, ChmodInvalidFile) {
+    EXPECT_EQ(-ENOENT, fs.chmod("/test", 0600));
+}
+
 TEST_P(IOTest, Chown) {
     const std::string filename("/test");
 
