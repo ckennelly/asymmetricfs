@@ -318,6 +318,23 @@ TEST_P(IOTest, TruncateInvalidOffset) {
     EXPECT_EQ(-EINVAL, f.truncate(-1));
 }
 
+TEST_P(IOTest, TruncateReadOnlyFile) {
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+
+    {
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
+        f.write(contents);
+    }
+
+    EXPECT_EQ(0, fs.chmod(filename.c_str(), 0400));
+
+    if (GetParam() == IOMode::ReadWrite) {
+        scoped_file f(fs, filename, O_RDONLY);
+        EXPECT_EQ(-EINVAL, f.truncate(0));
+    }
+}
+
 TEST_P(IOTest, TruncateZeroFromCreation) {
     const std::string filename("/test");
     const std::string contents("abcdefg");

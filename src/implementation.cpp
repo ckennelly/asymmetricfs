@@ -559,6 +559,8 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
     const int  access_mode = flags & O_ACCMODE;
     const bool for_reading = (access_mode == O_RDWR) ||
                              (access_mode == O_RDONLY);
+    const bool for_writing = (access_mode == O_RDWR) ||
+                             (access_mode == O_WRONLY);
     if (!(read_) && for_reading) {
         if (flags & O_CREAT) {
             /* Require that the file be created (i.e., it does not already
@@ -574,7 +576,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
             break;
         }
 
-        if (read_ && !(for_reading) && errno == EACCES) {
+        if (read_ && !(for_writing) && errno == EACCES) {
             ret = ::openat(root_, relpath.c_str(), flags);
             if (ret >= 0) {
                 break;
