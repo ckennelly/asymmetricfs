@@ -65,10 +65,6 @@ static int helper_link(const char *oldpath, const char *newpath) {
     return impl.link(oldpath, newpath);
 }
 
-static int helper_listxattr(const char *path, char *buffer, size_t size) {
-    return impl.listxattr(path, buffer, size);
-}
-
 static int helper_mkdir(const char *path, mode_t mode) {
     return impl.mkdir(path, mode);
 }
@@ -103,21 +99,12 @@ static int helper_releasedir(const char *path, struct fuse_file_info *info) {
     return impl.releasedir(path, info);
 }
 
-static int helper_removexattr(const char *path, const char *name) {
-    return impl.removexattr(path, name);
-}
-
 static int helper_rename(const char *oldpath, const char *newpath) {
     return impl.rename(oldpath, newpath);
 }
 
 static int helper_rmdir(const char *path) {
     return impl.rmdir(path);
-}
-
-static int helper_setxattr(const char *path, const char *name,
-        const char *value, size_t size, int flags) {
-    return impl.setxattr(path, name, value, size, flags);
 }
 
 static int helper_statfs(const char *path, struct statvfs *buf) {
@@ -144,6 +131,21 @@ static int helper_write(const char *path, const char *buffer, size_t size,
         off_t offset, struct fuse_file_info *info) {
     return impl.write(path, buffer, size, offset, info);
 }
+
+#ifdef HAS_XATTR
+static int helper_listxattr(const char *path, char *buffer, size_t size) {
+    return impl.listxattr(path, buffer, size);
+}
+
+static int helper_removexattr(const char *path, const char *name) {
+    return impl.removexattr(path, name);
+}
+
+static int helper_setxattr(const char *path, const char *name,
+        const char *value, size_t size, int flags) {
+    return impl.setxattr(path, name, value, size, flags);
+}
+#endif // HAS_XATTR
 
 int main(int argc, char **argv) {
     namespace po = boost::program_options;
@@ -259,7 +261,6 @@ int main(int argc, char **argv) {
     ops.getattr     = helper_getattr;
     ops.init        = helper_init;
     ops.link        = helper_link;
-    ops.listxattr   = helper_listxattr;
     ops.mkdir       = helper_mkdir;
     ops.open        = helper_open;
     ops.opendir     = helper_opendir;
@@ -268,16 +269,21 @@ int main(int argc, char **argv) {
     ops.readlink    = helper_readlink;
     ops.release     = helper_release;
     ops.releasedir  = helper_releasedir;
-    ops.removexattr = helper_removexattr;
     ops.rename      = helper_rename;
     ops.rmdir       = helper_rmdir;
-    ops.setxattr    = helper_setxattr;
     ops.statfs      = helper_statfs;
     ops.symlink     = helper_symlink;
     ops.truncate    = helper_truncate;
     ops.unlink      = helper_unlink;
     ops.utimens     = helper_utimens;
     ops.write       = helper_write;
+
+    #ifdef HAS_XATTR
+    ops.listxattr   = helper_listxattr;
+    ops.removexattr = helper_removexattr;
+    ops.setxattr    = helper_setxattr;
+    #endif // HAS_XATTR
+
     ops.flag_nullpath_ok = 1;
     ops.flag_nopath = 1;
     ops.flag_utime_omit_ok = 1;

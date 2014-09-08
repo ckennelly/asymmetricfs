@@ -59,7 +59,9 @@ public:
     int ftruncate(const char *path, off_t offset, struct fuse_file_info *info);
     int getattr(const char *path, struct stat *s);
     int link(const char *oldpath, const char *newpath);
+    #ifdef HAS_XATTR
     int listxattr(const char *path, char *buffer, size_t size);
+    #endif // HAS_XATTR
     int mkdir(const char *path, mode_t mode);
     int open(const char *path, struct fuse_file_info *info);
     int opendir(const char *path, struct fuse_file_info *info);
@@ -70,11 +72,15 @@ public:
     int readlink(const char *path, char *buffer, size_t size);
     int release(const char * path, struct fuse_file_info *info);
     int releasedir(const char *path, struct fuse_file_info *info);
+    #ifdef HAS_XATTR
     int removexattr(const char *path, const char *attr);
+    #endif // HAS_XATTR
     int rename(const char *, const char *);
     int rmdir(const char *path);
+    #ifdef HAS_XATTR
     int setxattr(const char *path, const char *name, const void *value,
         size_t size, int flags);
+    #endif // HAS_XATTR
     int statfs(const char *path, struct statvfs *buf);
     int symlink(const char *oldpath, const char *newpath);
     int truncate(const char *path, off_t offset);

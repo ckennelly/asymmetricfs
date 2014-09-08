@@ -23,7 +23,9 @@
 namespace std { class type_info; }
 
 #include <sys/types.h>
+#ifdef HAS_XATTR
 #include <attr/xattr.h>
+#endif // HAS_XATTR
 #include <cassert>
 #include <climits>
 #include <cstdlib>
@@ -507,6 +509,7 @@ int asymmetricfs::link(const char *oldpath, const char *newpath) {
     return -EPERM;
 }
 
+#ifdef HAS_XATTR
 int asymmetricfs::listxattr(const char *path_, char *buffer, size_t size) {
     const std::string path(path_);
     const std::string relpath("." + path);
@@ -524,6 +527,7 @@ int asymmetricfs::listxattr(const char *path_, char *buffer, size_t size) {
 
     return 0;
 }
+#endif // HAS_XATTR
 
 int asymmetricfs::mkdir(const char *path_, mode_t mode) {
     const std::string path(path_);
@@ -835,6 +839,7 @@ int asymmetricfs::releasedir(const char *path, struct fuse_file_info *info) {
     return 0;
 }
 
+#ifdef HAS_XATTR
 int asymmetricfs::removexattr(const char *path_, const char *name) {
     const std::string path(path_);
     const std::string relpath("." + path);
@@ -852,6 +857,7 @@ int asymmetricfs::removexattr(const char *path_, const char *name) {
 
     return ret;
 }
+#endif // HAS_XATTR
 
 int asymmetricfs::rename(const char *oldpath_, const char *newpath_) {
     const std::string oldpath(oldpath_);
@@ -901,6 +907,7 @@ int asymmetricfs::rmdir(const char *path_) {
     return 0;
 }
 
+#ifdef HAS_XATTR
 int asymmetricfs::setxattr(const char *path_, const char *name,
         const void *value, size_t size, int flags) {
     const std::string path(path_);
@@ -919,6 +926,7 @@ int asymmetricfs::setxattr(const char *path_, const char *name,
 
     return 0;
 }
+#endif // HAS_XATTR
 
 int asymmetricfs::statfs(const char *path, struct statvfs *buf) {
     (void) path;
