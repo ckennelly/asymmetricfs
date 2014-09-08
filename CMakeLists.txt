@@ -1,7 +1,8 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-# Boost
-FIND_PACKAGE(Boost REQUIRED program_options system)
+# Boost.  We require version 1.49 or higher due to:
+# http://stackoverflow.com/questions/11302758/error-while-copy-constructing-boostshared-ptr-using-c11
+FIND_PACKAGE(Boost 1.49 REQUIRED program_options system)
 
 # FUSE
 FIND_LIBRARY(FUSE "fuse")
