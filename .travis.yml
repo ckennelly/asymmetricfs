@@ -13,7 +13,7 @@ before_script:
 - cd build
 
 script:
-- cmake .. && cmake --build . --target install
+- cmake .. && cmake --build .
 
 after_script:
 - ctest -V .
