@@ -6,7 +6,7 @@ compiler:
 
 before_install:
  - sudo apt-get update -qq
- - sudo apt-get install -qq cmake libboost-all-dev libgtest-dev
+ - sudo apt-get install -qq cmake libboost-all-dev libfuse-dev libgtest-dev
 
 before_script:
 - mkdir build
