@@ -8,7 +8,7 @@ FIND_PACKAGE(Boost 1.49 REQUIRED program_options system)
 FIND_LIBRARY(FUSE "fuse")
 
 # Warnings
-SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wno-long-long -Wuninitialized -Wno-conversion -Wno-sign-conversion -Werror")
+SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wno-long-long -Wuninitialized -Wno-conversion -Wno-sign-conversion -Werror -Wno-missing-field-initializers")
 SET(CMAKE_CXX_FLAGS "${WARNINGS} -Wnon-virtual-dtor -g")
 
 # C++11 support
