@@ -8,8 +8,8 @@ FIND_PACKAGE(Boost 1.49 REQUIRED program_options system)
 FIND_LIBRARY(FUSE "fuse")
 
 # Warnings
-SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wno-long-long -Wuninitialized -Wconversion -Wno-sign-conversion -Werror")
-SET(CMAKE_CXX_FLAGS "${WARNINGS} -Wabi -Wnon-virtual-dtor -g")
+SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wno-long-long -Wuninitialized -Wno-conversion -Wno-sign-conversion -Werror")
+SET(CMAKE_CXX_FLAGS "${WARNINGS} -Wnon-virtual-dtor -g")
 
 # C++11 support
 INCLUDE(TestCXXAcceptsFlag)
@@ -35,6 +35,9 @@ CHECK_INCLUDE_FILE_CXX("attr/xattr.h" HAS_XATTR)
 IF (HAS_XATTR)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAS_XTTR")
 ENDIF()
+
+# Google Test
+ADD_SUBDIRECTORY(third_party/googletest)
 
 # Build targets
 ENABLE_TESTING()

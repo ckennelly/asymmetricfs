@@ -13,7 +13,9 @@ In read/write mode, stored files are decrypted on-the-fly with `gpg` as needed. 
 Building
 ========
 
-`asymmetricfs` depends on boost, CMake, and Google Test at compile time.  At runtime, `gpg` must be available in the path.
+`asymmetricfs` depends on boost and CMake at compile time.  Google Test is pulled-in and built via a git submodule.
+
+At runtime, `gpg` must be available in the path.
 
 Limitations
 ===========
