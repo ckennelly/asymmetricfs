@@ -285,8 +285,10 @@ int main(int argc, char **argv) {
     #endif // HAS_XATTR
 
     ops.flag_nullpath_ok = 1;
+    #if FUSE_VERSION >= 29
     ops.flag_nopath = 1;
     ops.flag_utime_omit_ok = 1;
+    #endif
 
     // Disable core dumps.
     if (vm.count("enable-core-dumps") == 0) {
