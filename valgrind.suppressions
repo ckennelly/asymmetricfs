@@ -1,0 +1,31 @@
+{
+   ubuntu_boost1.55
+   Memcheck:Addr8
+   fun:wcscmp
+   fun:_ZNSt10moneypunctIwLb0EED1Ev
+   fun:_ZNSt10moneypunctIwLb0EED0Ev
+   fun:_ZNSt6locale5_ImplD1Ev
+   fun:_ZNSt6localeD1Ev
+   fun:__cxa_finalize
+   obj:/usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.55.0
+   obj:/usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.55.0
+   fun:__run_exit_handlers
+   fun:exit
+   fun:(below main)
+}
+{
+   ubuntu_boost1.55
+   Memcheck:Addr8
+   fun:wcscmp
+   fun:_ZNSt10moneypunctIwLb1EED1Ev
+   fun:_ZNSt10moneypunctIwLb1EED0Ev
+   fun:_ZNSt6locale5_ImplD1Ev
+   fun:_ZNSt6localeD1Ev
+   fun:__cxa_finalize
+   obj:/usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.55.0
+   obj:/usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.55.0
+   fun:__run_exit_handlers
+   fun:exit
+   fun:(below main)
+}
+
