@@ -39,6 +39,73 @@ const std::string& gnupg_generation_error::what() const {
     return what_;
 }
 
+gpg_version::gpg_version(int _major, int _minor, int _maintenance) :
+    major_(_major), minor_(_minor), maintenance_(_maintenance) {}
+
+gpg_version::gpg_version() {
+    std::string buffer(1 << 12, '\0');
+    {
+        const std::vector<std::string> argv{"gpg", "--version"};
+
+        subprocess p(-1, -1, "gpg", argv);
+
+        size_t buffer_size = buffer.size();
+
+        int ret;
+        ret = p.communicate(&buffer[0], &buffer_size, nullptr, nullptr);
+        if (ret != 0) {
+            throw gnupg_generation_error("Unable to communicate with GPG.");
+        }
+        // Truncate.  buffer_size now tells us how many bytes are remaining in
+        // buffer *after* the actual data.
+        buffer.resize(buffer.size() - buffer_size);
+
+        ret = p.wait();
+        if (ret != 0) {
+            throw gnupg_generation_error("GPG exited with an error.");
+        }
+    }
+
+    // Expected strings:
+    //
+    // gpg (GnuPG) 1.4.11
+    // gpg (GnuPG) 2.0.25
+    int ret = sscanf(buffer.c_str(),
+                     "gpg (GnuPG) %d.%d.%d\n", &major_, &minor_, &maintenance_);
+    if (ret < 3) {
+        throw gnupg_generation_error("Unable to parse version string.");
+    }
+}
+
+const gpg_version& gpg_version::current() {
+    static gpg_version instance;
+    return instance;
+}
+
+int gpg_version::major() const {
+    return major_;
+}
+
+int gpg_version::minor() const {
+    return minor_;
+}
+
+int gpg_version::maintenance() const {
+    return maintenance_;
+}
+
+bool gpg_version::operator==(const gpg_version& rhs) const {
+    return major_ == rhs.major_ && minor_ == rhs.minor_ &&
+        maintenance_ == rhs.maintenance_;
+}
+
+bool gpg_version::operator<(const gpg_version& rhs) const {
+    return major_ < rhs.major_ ||
+              (major_ == rhs.major_ &&
+                  (minor_ < rhs.minor_ ||
+                  (minor_ == rhs.minor_ && maintenance_ < rhs.maintenance_)));
+}
+
 gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
         public_keyring_(key_directory_.path() / "pubring.gpg"),
         secret_keyring_(key_directory_.path() / "secring.gpg") {
@@ -46,7 +113,7 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
 
     batch << "Key-Type: RSA" << std::endl;
     batch << "Key-Length: " << spec.key_size << std::endl;
-    batch << "Subkey-Type: default" << std::endl;
+    batch << "Subkey-Type: RSA" << std::endl;
 
     if (!(spec_.name.empty())) {
         batch << "Name-Real: " << spec_.name << std::endl;
@@ -73,6 +140,11 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
     size_t in_size = command.size();
 
     {
+        // Use --quick-random on GPG 1.x and --debug-quick-random on GPG 2.x.
+        const std::string quick_random =
+            gpg_version::current() < gpg_version(2, 0, 0) ?
+            "--quick-random" : "--debug-quick-random";
+
         const std::vector<std::string> argv{
             "gpg",
             "--gen-key",
@@ -81,8 +153,7 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
             "--no-default-keyring",
             "--no-permission-warning",
             "--no-options",
-            // TODO: Use --quick-random on GPG 1.x
-            "--debug-quick-random"};
+            quick_random};
         subprocess p(-1, -1, "gpg", argv);
 
         int ret;

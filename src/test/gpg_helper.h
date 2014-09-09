@@ -56,6 +56,27 @@ private:
     std::string what_;
 };
 
+class gpg_version {
+public:
+    // Instantiates a gpg_version of the specified major, minor, maintenance
+    // numbers.
+    gpg_version(int _major, int _minor, int _maintenance);
+
+    // Retrieves the version from the installed GPG binary.
+    static const gpg_version& current();
+
+    int major() const;
+    int minor() const;
+    int maintenance() const;
+
+    bool operator==(const gpg_version&) const;
+    bool operator<(const gpg_version&) const;
+private:
+    gpg_version();
+
+    int major_, minor_, maintenance_;
+};
+
 // gnupg_key manages the lifetime of a generated GPG key.  When it is
 // destroyed, the keys are cleaned up.
 class gnupg_key {
