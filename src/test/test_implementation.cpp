@@ -77,9 +77,35 @@ protected:
         return fs.truncate(path.c_str(), offset);
     }
 
+    typedef std::map<std::string, struct stat> stat_map;
+    int readdir(const std::string& path, stat_map* buffer) {
+        // Open directory.
+        int ret;
+        struct fuse_file_info info;
+        ret = fs.opendir(path.c_str(), &info);
+        EXPECT_EQ(0, ret);
+
+        int response = fs.readdir(nullptr, buffer, IOTest::filler, 0, &info);
+
+        ret = fs.releasedir(nullptr, &info);
+        EXPECT_EQ(0, ret);
+        return response;
+    }
+
     temporary_directory backing;
     gnupg_key key;
     asymmetricfs fs;
+private:
+    static int filler(
+            void *buf_, const char *name_, const struct stat *stbuf, off_t off) {
+        auto buf = static_cast<stat_map*>(buf_);
+        const std::string name(name_);
+        (void) off;
+
+        bool r = buf->insert(std::make_pair(name, *stbuf)).second;
+        EXPECT_TRUE(r);
+        return 0;
+    }
 };
 
 class scoped_file {
@@ -544,31 +570,11 @@ TEST_P(IOTest, TruncatePathOpenFile) {
     EXPECT_EQ(0, buf.st_size);
 }
 
-typedef std::map<std::string, struct stat> stat_map;
-
-static int filler(
-        void *buf_, const char *name_, const struct stat *stbuf, off_t off) {
-    auto buf = static_cast<stat_map*>(buf_);
-    const std::string name(name_);
-    (void) off;
-
-    bool r = buf->insert(std::make_pair(name, *stbuf)).second;
-    EXPECT_TRUE(r);
-    return 0;
-}
-
 TEST_P(IOTest, ListEmptyDirectory) {
-    int ret;
-    // Open directory.
-    struct fuse_file_info info;
-    ret = fs.opendir("/", &info);
-    EXPECT_EQ(0, ret);
-
     // Read directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(2u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
@@ -584,17 +590,13 @@ TEST_P(IOTest, ListEmptyDirectory) {
     // Reread directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISREG(buffer[filename].st_mode));
     }
-
-    ret = fs.releasedir(nullptr, &info);
-    EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, CreateRemoveDirectory) {
@@ -602,16 +604,10 @@ TEST_P(IOTest, CreateRemoveDirectory) {
     const std::string full_directory("/" + directory);
 
     int ret;
-    // Open directory.
-    struct fuse_file_info info;
-    ret = fs.opendir("/", &info);
-    EXPECT_EQ(0, ret);
-
     // Read directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(2u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
@@ -627,8 +623,7 @@ TEST_P(IOTest, CreateRemoveDirectory) {
     // Read directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
@@ -645,16 +640,12 @@ TEST_P(IOTest, CreateRemoveDirectory) {
     // Read directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(2u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
     }
-
-    ret = fs.releasedir(nullptr, &info);
-    EXPECT_EQ(0, ret);
 }
 
 TEST_P(IOTest, Chmod) {
@@ -768,22 +759,13 @@ TEST_P(IOTest, Rename) {
 
     // Read directory
     {
-        // Open directory.
-        struct fuse_file_info info;
-        ret = fs.opendir("/", &info);
-        EXPECT_EQ(0, ret);
-
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISREG(buffer[oldname].st_mode));
-
-        ret = fs.releasedir(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Rename
@@ -794,22 +776,13 @@ TEST_P(IOTest, Rename) {
 
     // Read directory
     {
-        // Open directory.
-        struct fuse_file_info info;
-        ret = fs.opendir("/", &info);
-        EXPECT_EQ(0, ret);
-
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISREG(buffer[newname].st_mode));
-
-        ret = fs.releasedir(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Stat files
@@ -877,22 +850,13 @@ TEST_P(IOTest, RenameOpenFile) {
 
     // Read directory
     {
-        // Open directory.
-        struct fuse_file_info info;
-        ret = fs.opendir("/", &info);
-        EXPECT_EQ(0, ret);
-
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISREG(buffer[oldname].st_mode));
-
-        ret = fs.releasedir(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Rename
@@ -903,22 +867,13 @@ TEST_P(IOTest, RenameOpenFile) {
 
     // Read directory
     {
-        // Open directory.
-        struct fuse_file_info info;
-        ret = fs.opendir("/", &info);
-        EXPECT_EQ(0, ret);
-
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISREG(buffer[newname].st_mode));
-
-        ret = fs.releasedir(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Stat files via path.
@@ -978,16 +933,10 @@ TEST_P(IOTest, CreateSymlink) {
     const std::string full_link_name("/" + link_name);
 
     int ret;
-    // Open directory.
-    struct fuse_file_info info;
-    ret = fs.opendir("/", &info);
-    EXPECT_EQ(0, ret);
-
     // Read directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(2u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
@@ -1003,17 +952,13 @@ TEST_P(IOTest, CreateSymlink) {
     // Read directory
     {
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISLNK(buffer[link_name].st_mode));
     }
-
-    ret = fs.releasedir(nullptr, &info);
-    EXPECT_EQ(0, ret);
 
     // readlink
     std::string buffer(1 << 8, '\0');
@@ -1070,21 +1015,13 @@ TEST_P(IOTest, UnlinkFile) {
 
     // Read directory
     {
-        struct fuse_file_info info;
-        ret = fs.opendir("/", &info);
-        EXPECT_EQ(0, ret);
-
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(3u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
         EXPECT_TRUE(S_ISREG(buffer[filename].st_mode));
-
-        ret = fs.releasedir(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 
     // Unlink
@@ -1093,20 +1030,12 @@ TEST_P(IOTest, UnlinkFile) {
 
     // Verify.
     {
-        struct fuse_file_info info;
-        ret = fs.opendir("/", &info);
-        EXPECT_EQ(0, ret);
-
         stat_map buffer;
-        ret = fs.readdir(nullptr, &buffer, filler, 0, &info);
-        EXPECT_EQ(0, ret);
+        ASSERT_EQ(0, readdir("/", &buffer));
         ASSERT_EQ(2u, buffer.size());
 
         EXPECT_TRUE(S_ISDIR(buffer["."].st_mode));
         EXPECT_TRUE(S_ISDIR(buffer[".."].st_mode));
-
-        ret = fs.releasedir(nullptr, &info);
-        EXPECT_EQ(0, ret);
     }
 }
 
