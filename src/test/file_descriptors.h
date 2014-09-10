@@ -1,3 +1,6 @@
+#ifndef __ASYMMETRICFS__FILE_DESCRIPTORS_H__
+#define __ASYMMETRICFS__FILE_DESCRIPTORS_H__
+
 /**
  * asymmetricfs - An asymmetric encryption-aware filesystem
  * (c) 2014 Chris Kennelly <chris@ckennelly.com>
@@ -16,22 +19,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "gpg_recipient.h"
-#include <gtest/gtest.h>
-#include "test/file_descriptors.h"
+#include <map>
+#include <string>
 
-TEST(GPGRecipientTest, NoDescriptorsLeaked) {
-    // Verify we do not leak descriptors when using gpg_recipient.
-    auto starting = get_file_descriptors();
+// get_file_descriptors enumerates the open file descriptors of the current
+// process.  return_self indicates whether to return the file descriptor used
+// to read the list of current file descriptors.
+std::map<int, std::string> get_file_descriptors(bool return_self = false);
 
-    // TODO:  While implausible, it's possible this is a valid key in someone's
-    // public keyring (pgp.mit.edu says there are two, in fact), so we should
-    // validate with an empty keyring.
-    gpg_recipient g("0x00000000");
-    EXPECT_THROW(g.validate("gpg"), invalid_gpg_recipient);
-
-    auto ending = get_file_descriptors();
-
-    // Verify open file descriptors are unchanged.
-    EXPECT_EQ(starting, ending);
-}
+#endif // __ASYMMETRICFS__FILE_DESCRIPTORS_H__

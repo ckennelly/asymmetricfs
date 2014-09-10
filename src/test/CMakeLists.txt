@@ -2,6 +2,15 @@
 ADD_LIBRARY(test_helpers gpg_helper.cpp temporary_directory.cpp)
 TARGET_LINK_LIBRARIES(test_helpers asymmetric boost_filesystem boost_system)
 
+ADD_LIBRARY(file_descriptors file_descriptors.cpp)
+
+ADD_EXECUTABLE(test_file_descriptors test_file_descriptors.cpp)
+TARGET_LINK_LIBRARIES(test_file_descriptors gtest gtest_main file_descriptors)
+
+ADD_TEST(NAME RUNNER_test_file_descriptors COMMAND "$<TARGET_FILE:test_file_descriptors>")
+ADD_TEST(NAME VRUNNER_test_file_descriptors COMMAND valgrind --error-exitcode=1
+    --leak-check=full --suppressions=${CMAKE_SOURCE_DIR}/valgrind.suppressions "$<TARGET_FILE:test_file_descriptors>")
+
 # test helper tests
 ADD_EXECUTABLE(test_gpg_helper test_gpg_helper.cpp)
 TARGET_LINK_LIBRARIES(test_gpg_helper gtest gtest_main test_helpers)
@@ -19,7 +28,7 @@ ADD_TEST(NAME VRUNNER_test_temporary_directory COMMAND valgrind --error-exitcode
 
 # gpg_recipient tests
 ADD_EXECUTABLE(test_gpg_recipient test_gpg_recipient.cpp)
-TARGET_LINK_LIBRARIES(test_gpg_recipient gtest gtest_main asymmetric)
+TARGET_LINK_LIBRARIES(test_gpg_recipient gtest gtest_main asymmetric file_descriptors)
 
 ADD_TEST(NAME RUNNER_test_gpg_recipient COMMAND "$<TARGET_FILE:test_gpg_recipient>")
 ADD_TEST(NAME VRUNNER_test_gpg_recipient COMMAND valgrind --error-exitcode=1
