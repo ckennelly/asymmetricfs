@@ -1,5 +1,8 @@
 asymmetricfs - An Asymmetric, Encrypting Filesystem for Userspace
+
 (c) 2013-2014 - Chris Kennelly (chris@ckennelly.com)
+
+[![Build Status](https://travis-ci.org/ckennelly/asymmetricfs.svg?branch=master)](https://travis-ci.org/ckennelly/asymmetricfs)
 
 Overview
 ========
