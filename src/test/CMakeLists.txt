@@ -11,6 +11,9 @@ ADD_TEST(NAME RUNNER_test_file_descriptors COMMAND "$<TARGET_FILE:test_file_desc
 ADD_TEST(NAME VRUNNER_test_file_descriptors COMMAND valgrind --error-exitcode=1
     --leak-check=full --suppressions=${CMAKE_SOURCE_DIR}/valgrind.suppressions "$<TARGET_FILE:test_file_descriptors>")
 
+ADD_EXECUTABLE(wrap_gpg wrap_gpg.cpp)
+TARGET_LINK_LIBRARIES(wrap_gpg file_descriptors)
+
 # test helper tests
 ADD_EXECUTABLE(test_gpg_helper test_gpg_helper.cpp)
 TARGET_LINK_LIBRARIES(test_gpg_helper gtest gtest_main test_helpers)
@@ -36,11 +39,11 @@ ADD_TEST(NAME VRUNNER_test_gpg_recipient COMMAND valgrind --error-exitcode=1
 
 # implementation tests
 ADD_EXECUTABLE(test_implementation test_implementation.cpp)
-TARGET_LINK_LIBRARIES(test_implementation gtest gtest_main asymmetric test_helpers)
+TARGET_LINK_LIBRARIES(test_implementation gtest gtest_main asymmetric test_helpers file_descriptors)
 
-ADD_TEST(NAME RUNNER_test_implementation COMMAND "$<TARGET_FILE:test_implementation>")
+ADD_TEST(NAME RUNNER_test_implementation COMMAND "$<TARGET_FILE:test_implementation>" "$<TARGET_FILE:wrap_gpg>")
 ADD_TEST(NAME VRUNNER_test_implementation COMMAND valgrind --error-exitcode=1
-    --leak-check=full --suppressions=${CMAKE_SOURCE_DIR}/valgrind.suppressions "$<TARGET_FILE:test_implementation>")
+    --leak-check=full --suppressions=${CMAKE_SOURCE_DIR}/valgrind.suppressions "$<TARGET_FILE:test_implementation>" "$<TARGET_FILE:wrap_gpg>")
 
 # page_buffer tests
 ADD_EXECUTABLE(test_page_buffer test_page_buffer.cpp)

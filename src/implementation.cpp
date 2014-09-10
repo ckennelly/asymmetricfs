@@ -300,6 +300,7 @@ int asymmetricfs::create(const char *path_, mode_t mode,
     const std::string path(path_);
     const std::string relpath("." + path);
 
+    info->flags |= O_CLOEXEC;
     info->flags |= O_CREAT;
 
     assert(info);
@@ -407,7 +408,7 @@ bool asymmetricfs::set_target(const std::string & target) {
         root_set_ = false;
     }
 
-    root_ = ::open(target.c_str(), O_DIRECTORY);
+    root_ = ::open(target.c_str(), O_CLOEXEC | O_DIRECTORY);
     return (root_set_ = (root_ >= 0));
 }
 
@@ -516,7 +517,7 @@ int asymmetricfs::listxattr(const char *path_, char *buffer, size_t size) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int fd = ::openat(root_, relpath.c_str(), O_PATH);
+    int fd = ::openat(root_, relpath.c_str(), O_CLOEXEC | O_PATH);
     if (fd < 0) {
         return errno;
     }
@@ -574,6 +575,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
             flags |= O_EXCL;
         }
     }
+    flags |= O_CLOEXEC;
 
     int ret;
     do {
@@ -630,7 +632,7 @@ int asymmetricfs::opendir(const char *path_, struct fuse_file_info *info) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int dirfd = ::openat(root_, relpath.c_str(), O_DIRECTORY);
+    int dirfd = ::openat(root_, relpath.c_str(), O_CLOEXEC | O_DIRECTORY);
     if (dirfd < 0) {
         return -errno;
     }
@@ -846,7 +848,7 @@ int asymmetricfs::removexattr(const char *path_, const char *name) {
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int fd = ::openat(root_, relpath.c_str(), O_PATH);
+    int fd = ::openat(root_, relpath.c_str(), O_CLOEXEC | O_PATH);
     if (fd < 0) {
         return -errno;
     }
@@ -915,7 +917,7 @@ int asymmetricfs::setxattr(const char *path_, const char *name,
     const std::string path(path_);
     const std::string relpath("." + path);
 
-    int fd = ::openat(root_, relpath.c_str(), O_PATH);
+    int fd = ::openat(root_, relpath.c_str(), O_CLOEXEC | O_PATH);
     if (fd < 0) {
         return -errno;
     }
@@ -969,7 +971,7 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
     if (is_open) {
         return truncatefd(it->second, offset);
     } else if (offset == 0) {
-        int fd = ::openat(root_, relpath.c_str(), O_WRONLY);
+        int fd = ::openat(root_, relpath.c_str(), O_CLOEXEC | O_WRONLY);
         if (fd < 0) {
             return -errno;
         }
@@ -984,7 +986,7 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
     } else if (read_) {
         /* Decrypt, truncate, encrypt. */
         const int flags = O_RDWR;
-        int fd = ::openat(root_, relpath.c_str(), flags);
+        int fd = ::openat(root_, relpath.c_str(), O_CLOEXEC | flags);
         if (fd < 0) {
             return -errno;
         }

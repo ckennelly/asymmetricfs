@@ -20,6 +20,7 @@
 #include "implementation.h"
 #include <iostream>
 #include <map>
+#include "test/file_descriptors.h"
 #include "test/gpg_helper.h"
 #include "test/temporary_directory.h"
 #include <time.h>
@@ -39,6 +40,9 @@ std::ostream& operator<<(std::ostream& o, const IOMode& m) {
 
     return o;
 }
+
+// Global parameters.
+std::string wrapper_path;
 
 class IOTest : public ::testing::TestWithParam<IOMode> {
 protected:
@@ -729,6 +733,75 @@ TEST_P(IOTest, ChownToRoot) {
     EXPECT_EQ(-EPERM, fs.chown(filename.c_str(), 0, 0));
 }
 
+TEST_P(IOTest, ClosedFileDescriptors) {
+    // This test verifies that file descriptors other than stdin, stdout, and
+    // stderr are closed when running GPG.  If no wrapper path is specified
+    // during test execution, this test is skipped.
+    if (wrapper_path == "") {
+        return;
+    }
+
+    // When run under CTest, an additional file descriptor pointing at
+    // .../Testing/Temporary/LastTest.log.tmp will be opened.  Before executing
+    // this test, we scan the open file descriptors for this file and mark it
+    // to be closed on exec.
+    const std::string suffix("/Testing/Temporary/LastTest.log.tmp");
+    auto fds = get_file_descriptors(false);
+    for (const auto& kv : fds) {
+        const int fd = kv.first;
+        const std::string& target = kv.second;
+        if (target.size() < suffix.size()) {
+            continue;
+        }
+
+        if (target.compare(
+                target.size() - suffix.size(), suffix.size(), suffix) != 0) {
+            continue;
+        }
+
+        std::cout << "Found CTest-related fd: " << fd << std::endl;
+        int flags = fcntl(fd, F_GETFD);
+        flags |= FD_CLOEXEC;
+        fcntl(fd, F_SETFD, flags);
+    }
+
+    fs.set_gpg(wrapper_path);
+
+    const std::string path_a("/a");
+    const std::string a("a-contents");
+
+    const std::string path_b("/b");
+    const std::string b("b-contents");
+
+    {
+        scoped_file f(fs, path_a, O_WRONLY | O_CREAT);
+        f.write(a);
+
+        {
+            scoped_file g(fs, path_b, O_WRONLY | O_CREAT);
+            g.write(b);
+        }
+    }
+
+    // The files should have non-zero size, even if we can't read them.  If the
+    // GPG wrapper aborted, the files will be empty.
+    struct stat buf;
+    EXPECT_EQ(0, getattr(path_a, &buf));
+    EXPECT_NE(0, buf.st_size);
+
+    EXPECT_EQ(0, getattr(path_b, &buf));
+    EXPECT_NE(0, buf.st_size);
+
+    // If we are in read-write mode, check the contents.
+    if (GetParam() == IOMode::ReadWrite) {
+        scoped_file f(fs, path_a, O_RDONLY);
+        scoped_file g(fs, path_b, O_RDONLY);
+
+        EXPECT_EQ(a, f.read());
+        EXPECT_EQ(b, g.read());
+    }
+}
+
 TEST_P(IOTest, CreateExisting) {
     const std::string filename("/foo");
     const int flags = O_CREAT | O_EXCL | O_WRONLY;
@@ -1072,4 +1145,18 @@ TEST_F(ImplementationTest, StatFS) {
     EXPECT_EQ(0, ret);
     EXPECT_LE(0, buf.f_blocks);
     EXPECT_LE(0, buf.f_bfree);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    // Assume the second argument is a GPG wrapper binary.
+    if (argc == 2) {
+        wrapper_path = argv[1];
+    } else {
+        std::cerr << "Wrapper binary not parsed, skipping some tests!"
+                  << std::endl;
+    }
+
+    return RUN_ALL_TESTS();
 }
