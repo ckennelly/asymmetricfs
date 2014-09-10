@@ -21,4 +21,4 @@ before_script:
 
 script:
 - cmake .. && cmake --build .
-- ctest -V .
+- ctest -E "VRUNNER.*" -V .

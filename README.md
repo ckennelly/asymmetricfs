@@ -13,7 +13,7 @@ In read/write mode, stored files are decrypted on-the-fly with `gpg` as needed. 
 Building
 ========
 
-`asymmetricfs` depends on boost and CMake at compile time.  Google Test is pulled-in and built via a git submodule.
+`asymmetricfs` depends on boost and CMake at compile time.  Google Test is pulled-in and built via a git submodule.  As `asymmetricfs` uses the `vmsplice` syscall, a modern (3.8.0 or higher) version of Valgrind must be available.
 
 At runtime, `gpg` must be available in the path.
 
