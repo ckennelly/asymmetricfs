@@ -41,6 +41,13 @@ public:
     bool set_target(const std::string & target);
     void set_read(bool read);
     void set_recipients(const std::vector<gpg_recipient> & recipients);
+
+    /**
+     * set_gpg specifies the path to the GPG binary.  If set_gpg is not called
+     * before use, "gpg" in the normal search path is used.
+     */
+    void set_gpg(const std::string& gpg_path);
+
     bool ready() const;
 
     /**
@@ -97,6 +104,7 @@ private:
     int root_;
 
     std::vector<gpg_recipient> recipients_;
+    std::string gpg_path_;
 
     /**
      * This protects all internal data structures.

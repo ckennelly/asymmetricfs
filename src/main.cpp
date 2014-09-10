@@ -147,11 +147,15 @@ static int helper_setxattr(const char *path, const char *name,
 }
 #endif // HAS_XATTR
 
+#define STRINGIFY(X) #X
+#define STR(X) STRINGIFY(X)
+
 int main(int argc, char **argv) {
     namespace po = boost::program_options;
 
     typedef std::vector<gpg_recipient> RecipientList;
     RecipientList recipients;
+    std::string gpg_path;
     std::string target;
     std::string mount_point;
 
@@ -160,6 +164,9 @@ int main(int argc, char **argv) {
         ("help",    "Provides this help message.")
         ("rw",          po::value<bool>()->zero_tokens(), "Read-write mode.")
         ("wo",          po::value<bool>()->zero_tokens(), "Write-only mode.")
+        ("gpg-binary",
+            po::value<std::string>(&gpg_path)->default_value(STR(GPG_PATH)),
+            "Path to GPG binary.")
         ("recipient,r", po::value<RecipientList>(&recipients)->required(), "Key to encrypt to.");
 
     po::options_description hidden("Hidden Options");
@@ -186,6 +193,11 @@ int main(int argc, char **argv) {
         po::store(parsed, vm);
         po::notify(vm);
 
+        // Validate recipients now that gpg_path has been parsed.
+        for (const auto& r : recipients) {
+            r.validate(gpg_path);
+        }
+
         unrecognized =
             collect_unrecognized(parsed.options, po::exclude_positional);
         usage = vm.count("help");
@@ -201,6 +213,7 @@ int main(int argc, char **argv) {
         errors.push_back("--rw or --wo must be specified.");
     }
 
+    impl.set_gpg(gpg_path);
     impl.set_read(read);
     impl.set_recipients(recipients);
     if (errors.empty()) {

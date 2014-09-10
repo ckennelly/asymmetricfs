@@ -69,7 +69,8 @@ TEST_F(GPGRecipientTest, NoDescriptorsLeaked) {
     // TODO:  While implausible, it's possible this is a valid key in someone's
     // public keyring (pgp.mit.edu says there are two, in fact), so we should
     // validate with an empty keyring.
-    EXPECT_THROW({gpg_recipient g("0x00000000");}, invalid_gpg_recipient);
+    gpg_recipient g("0x00000000");
+    EXPECT_THROW(g.validate("gpg"), invalid_gpg_recipient);
 
     auto ending = get_file_descriptors();
 

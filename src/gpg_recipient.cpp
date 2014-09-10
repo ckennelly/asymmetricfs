@@ -33,7 +33,9 @@ const char * invalid_gpg_recipient::what() const throw() {
     return "Invalid gpg recipient.";
 }
 
-gpg_recipient::gpg_recipient(const std::string & r) {
+gpg_recipient::gpg_recipient(const std::string& r) : r_(r) {}
+
+void gpg_recipient::validate(const std::string& gpg_path) const {
     /* Start gpg. */
     int in  = ::open("/dev/null", O_RDONLY);
     if (in < 0) {
@@ -48,18 +50,16 @@ gpg_recipient::gpg_recipient(const std::string & r) {
 
     int ret;
     {
-        subprocess s(in, out, "gpg", {"gpg", "--list-keys", r});
+        subprocess s(in, out, gpg_path, {"gpg", "--list-keys", r_});
         ret = s.wait();
     }
 
     ::close(in);
     ::close(out);
 
-    if (ret == 0) {
-        /* Valid address. */
-        r_ = r;
-    } else {
-        throw invalid_gpg_recipient(r);
+    if (ret != 0) {
+        /* Invalid address. */
+        throw invalid_gpg_recipient(r_);
     }
 }
 

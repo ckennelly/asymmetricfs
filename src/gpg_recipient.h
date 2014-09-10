@@ -37,6 +37,10 @@ class gpg_recipient {
 public:
     explicit gpg_recipient(const std::string & r);
 
+    // Validates the recipient is on the public keyring.  Throws
+    // invalid_gpg_recipient on error.
+    void validate(const std::string& gpg_path) const;
+
     operator std::string() const;
 private:
     std::string r_;
