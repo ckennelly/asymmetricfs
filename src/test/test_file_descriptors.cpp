@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
 #include "test/file_descriptors.h"
 #include <gtest/gtest.h>
 
@@ -26,6 +27,20 @@ TEST(FileDescriptorsTest, ReturnSelf) {
     EXPECT_NE(exclude_self, self);
 
     // We expect STDIN, STDOUT, STDERR to be open.
-    EXPECT_EQ(3u, exclude_self.size());
-    EXPECT_EQ(4u, self.size());
+    EXPECT_LE(3u, exclude_self.size());
+    EXPECT_LE(4u, self.size());
+    EXPECT_EQ(exclude_self.size() + 1, self.size());
+
+    // An unexpected file descriptor appeared when this test was first
+    // introduced (https://travis-ci.org/ckennelly/asymmetricfs/jobs/34884772),
+    // so we enumerate the open file descriptors for test debugging purposes.
+    std::cout << "Exclude Self:" << std::endl;
+    for (const auto& kv : exclude_self) {
+        std::cout << kv.first << " -> " << kv.second << std::endl;
+    }
+
+    std::cout << "Self:" << std::endl;
+    for (const auto& kv : exclude_self) {
+        std::cout << kv.first << " -> " << kv.second << std::endl;
+    }
 }
