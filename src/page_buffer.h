@@ -20,6 +20,7 @@
  */
 
 #include <map>
+#include "memory_lock.h"
 
 /**
  * page_allocation manages a mmap'd block of memory of a specified size.  It
@@ -28,12 +29,12 @@
 class page_allocation {
 public:
     /**
-     * This allocates a buffer of sz bytes.  sz must be a multiple of the page
-     * size.
+     * This allocates a buffer of sz bytes using the specified memory locking
+     * strategy.  sz must be a multiple of the page size.
      *
      * std::bad_alloc is thrown on failure.
      */
-    explicit page_allocation(size_t sz);
+    page_allocation(size_t sz, memory_lock m);
     ~page_allocation();
 
     /* Move */
@@ -54,7 +55,7 @@ private:
 
 class page_buffer {
 public:
-    page_buffer();
+    explicit page_buffer(memory_lock m);
     ~page_buffer();
 
     /**
@@ -111,6 +112,7 @@ private:
 
     const size_t page_size_;
     size_t buffer_size_;
+    memory_lock mlock_;
 };
 
 #endif // __ASYMMETRICFS__PAGE_BUFFER_H__

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <gtest/gtest.h>
+#include "memory_lock.h"
 #include "page_buffer.h"
 #include <string>
 #ifdef HAS_VALGRIND
@@ -76,6 +77,8 @@ private:
 
 class PageBufferTest : public ::testing::Test {
 public:
+    PageBufferTest() : buffer(memory_lock::none) {}
+
     page_buffer buffer;
 };
 
@@ -220,6 +223,8 @@ TEST_F(PageBufferTest, Clear) {
 // The parameter is the number of set bytes.
 class PageBufferSpliceTest : public ::testing::TestWithParam<unsigned>  {
 public:
+    PageBufferSpliceTest() : buffer(memory_lock::none) {}
+
     page_buffer buffer;
     Pipe loop;
 };
@@ -309,6 +314,35 @@ TEST_P(PageBufferSpliceTest, DataGap) {
 
 INSTANTIATE_TEST_CASE_P(Splicing, PageBufferSpliceTest,
    ::testing::Values(0u, 128u, 4096u, 8192u, 8320u));
+
+// The parameter is the memory locking strategy.
+class PageBufferMemoryLockTest :
+        public ::testing::TestWithParam<memory_lock>  {
+public:
+    PageBufferMemoryLockTest() : buffer(GetParam()) {}
+
+    page_buffer buffer;
+};
+
+TEST_P(PageBufferMemoryLockTest, ReadWrite) {
+    std::string data = make_data(4096);
+
+    buffer.write(data.size(), 0, &data[0]);
+    EXPECT_EQ(data.size(), buffer.size());
+
+    std::string tmp(data.size(), '\1');
+    #ifdef HAS_VALGRIND
+    VALGRIND_MAKE_MEM_UNDEFINED(&tmp[0], data.size());
+    #endif
+    ssize_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
+    EXPECT_EQ(data.size(), ret);
+    EXPECT_EQ(data, tmp);
+}
+
+INSTANTIATE_TEST_CASE_P(Locking, PageBufferMemoryLockTest,
+    ::testing::Values(memory_lock::all,
+                      memory_lock::buffers,
+                      memory_lock::none));
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

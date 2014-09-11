@@ -23,6 +23,7 @@
 #define FUSE_USE_VERSION 29
 #include <fuse.h>
 #include "gpg_recipient.h"
+#include "memory_lock.h"
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -34,6 +35,7 @@ class asymmetricfs {
 
         std::vector<gpg_recipient> recipients;
         std::string gpg_path;
+        memory_lock mlock;
     };
 public:
     asymmetricfs();
@@ -48,6 +50,13 @@ public:
     bool set_target(const std::string & target);
     void set_read(bool read);
     void set_recipients(const std::vector<gpg_recipient> & recipients);
+
+    /**
+     * set_mlock specifies the memory locking behavior to use.  If set_mlock is
+     * not called before use, memory_lock_default is used.
+     */
+    static const memory_lock memory_lock_default;
+    void set_mlock(memory_lock mlock);
 
     /**
      * set_gpg specifies the path to the GPG binary.  If set_gpg is not called

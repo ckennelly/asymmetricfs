@@ -41,7 +41,7 @@ ssize_t zero_splice(int fd, size_t size, int flags) {
     const size_t max_allocation = 1 << 20 /* 1MB */;
     size_t allocation_size = std::min(size, max_allocation);
 
-    page_allocation tmp(allocation_size);
+    page_allocation tmp(allocation_size, memory_lock::none);
     size_t position;
     for (position = 0; position < size; ) {
         std::vector<iovec> ios;
@@ -66,7 +66,19 @@ ssize_t zero_splice(int fd, size_t size, int flags) {
 
 }  // namespace
 
-page_allocation::page_allocation(size_t sz) : size_(sz) {
+page_allocation::page_allocation(size_t sz, memory_lock m) : size_(sz) {
+    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    switch (m) {
+        case memory_lock::all:
+        case memory_lock::buffers:
+            flags |= MAP_LOCKED;
+            break;
+        case memory_lock::none:
+            break;
+        default:
+            __builtin_unreachable();
+    }
+
     ptr_ = mmap(NULL, size_, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (ptr_ == MAP_FAILED) {
@@ -105,8 +117,8 @@ size_t page_allocation::size() const {
     return size_;
 }
 
-page_buffer::page_buffer() : page_size_(sysconf(_SC_PAGESIZE)),
-    buffer_size_(0) { }
+page_buffer::page_buffer(memory_lock m) : page_size_(sysconf(_SC_PAGESIZE)),
+    buffer_size_(0), mlock_(m) { }
 
 page_buffer::~page_buffer() { }
 
@@ -174,7 +186,7 @@ void page_buffer::write(size_t n, size_t offset, const void *buffer) {
 
                 // Allocate.
                 it = page_allocations_.emplace(base,
-                    std::move(page_allocation(length))).first;
+                    std::move(page_allocation(length, mlock_))).first;
             }
         }
 

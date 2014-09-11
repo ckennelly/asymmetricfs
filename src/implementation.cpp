@@ -91,8 +91,8 @@ protected:
 };
 
 asymmetricfs::internal::internal(const asymmetricfs::options& options) :
-    references(0), buffer_set(false), dirty(false), open_(true),
-    options_(options) { }
+    references(0), buffer_set(false), dirty(false), buffer(options.mlock),
+    open_(true), options_(options) { }
 
 asymmetricfs::internal::~internal() {
     (void) close();
@@ -253,7 +253,10 @@ int asymmetricfs::internal::load_buffer() {
     return ret;
 }
 
-asymmetricfs::options::options() : gpg_path("gpg") {}
+const memory_lock asymmetricfs::memory_lock_default = memory_lock::all;
+
+asymmetricfs::options::options() : gpg_path("gpg"),
+    mlock(memory_lock_default) {}
 
 asymmetricfs::asymmetricfs() : read_(false), root_set_(false), next_(0) { }
 
@@ -393,6 +396,10 @@ bool asymmetricfs::ready() const {
 
 void asymmetricfs::set_gpg(const std::string& gpg_path) {
     options_.gpg_path = gpg_path;
+}
+
+void asymmetricfs::set_mlock(memory_lock m) {
+    options_.mlock = m;
 }
 
 void asymmetricfs::set_read(bool r) {

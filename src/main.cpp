@@ -26,8 +26,10 @@ namespace std { class type_info; }
 #include <cstring>
 #include "implementation.h"
 #include <iostream>
+#include "memory_lock.h"
 #include <stdexcept>
 #include <string>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <vector>
 
@@ -160,6 +162,7 @@ int main(int argc, char **argv) {
     std::string gpg_path;
     std::string target;
     std::string mount_point;
+    memory_lock mlock_value;
 
     po::options_description visible("Options");
     visible.add_options()
@@ -169,6 +172,10 @@ int main(int argc, char **argv) {
         ("gpg-binary",
             po::value<std::string>(&gpg_path)->default_value(STR(GPG_PATH)),
             "Path to GPG binary.")
+        ("memory-lock",
+            po::value<memory_lock>(&mlock_value)->
+                default_value(asymmetricfs::memory_lock_default),
+            "Memory locking behavior (all|buffers|none)")
         ("recipient,r",
             po::value<RecipientList>(&recipients)->required(),
             "Key to encrypt to.");
@@ -316,6 +323,21 @@ int main(int argc, char **argv) {
                          "this measure." << std::endl;
             return 1;
         }
+    }
+
+    // Configure memory locking.
+    switch (mlock_value) {
+        case memory_lock::all: {
+            int ret = mlockall(MCL_CURRENT | MCL_FUTURE);
+            if (ret != 0) {
+                std::cerr << "Unable to lock memory: "
+                          << strerror(errno) << std::endl;
+                return 1;
+            }
+        }
+        case memory_lock::buffers:
+        case memory_lock::none:
+            break;
     }
 
     return fuse_main(fuse_argc, fuse_argv.data(), &ops, NULL);
