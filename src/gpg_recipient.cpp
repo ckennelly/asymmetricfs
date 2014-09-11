@@ -73,14 +73,15 @@ void validate(boost::any & v, const std::vector<std::string> & values,
         gpg_recipient * target, int) {
     (void) target;
 
-    using namespace boost::program_options;
-
-    validators::check_first_occurrence(v);
-    const std::string & r = validators::get_single_string(values);
+    boost::program_options::validators::check_first_occurrence(v);
+    const std::string& r =
+        boost::program_options::validators::get_single_string(values);
 
     try {
         v = boost::any(gpg_recipient(r));
     } catch (invalid_gpg_recipient & ex) {
+        using boost::program_options::validation_error;
+
         throw validation_error(validation_error::invalid_option_value);
     }
 }
