@@ -15,7 +15,6 @@ before_install:
  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50
 
 before_script:
-- mkdir $HOME/.gnupg
 - mkdir build
 - cd build
 

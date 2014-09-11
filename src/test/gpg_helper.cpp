@@ -47,7 +47,7 @@ gpg_version::gpg_version(int _major, int _minor, int _maintenance) :
 gpg_version::gpg_version() {
     std::string buffer(1 << 12, '\0');
     {
-        const std::vector<std::string> argv{"gpg", "--version"};
+        const std::vector<std::string> argv{"gpg", "--no-options", "--version"};
 
         subprocess p(-1, -1, "gpg", argv);
 
@@ -153,7 +153,12 @@ gnupg_key::gnupg_key(const key_specification& spec) : spec_(spec),
             "--batch",
             "--no-tty",
             "--no-default-keyring",
+            "--secret-keyring",
+            "/dev/null",
+            "--keyring",
+            "/dev/null",
             "--no-permission-warning",
+            "--no-random-seed-file",
             "--no-options",
             quick_random};
         subprocess p(-1, -1, "gpg", argv);
