@@ -29,6 +29,12 @@
 #include <vector>
 
 class asymmetricfs {
+    struct options {
+        options();
+
+        std::vector<gpg_recipient> recipients;
+        std::string gpg_path;
+    };
 public:
     asymmetricfs();
     ~asymmetricfs();
@@ -104,8 +110,7 @@ private:
     bool root_set_;
     int root_;
 
-    std::vector<gpg_recipient> recipients_;
-    std::string gpg_path_;
+    options options_;
 
     /**
      * This protects all internal data structures.

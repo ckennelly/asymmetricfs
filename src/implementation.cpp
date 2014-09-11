@@ -63,10 +63,9 @@ int asymmetricfs::make_rdwr(int flags) const {
 
 class asymmetricfs::internal {
 public:
-    internal(const std::string& gpg_path, const RecipientList & recipients);
+    internal(const asymmetricfs::options& options);
     ~internal();
 
-    const std::string& gpg_path_;
     int fd;
     int flags;
     unsigned references;
@@ -88,13 +87,12 @@ protected:
     const internal & operator=(const internal &) = delete;
 
     bool open_;
-    const RecipientList & recipients_;
+    const asymmetricfs::options& options_;
 };
 
-asymmetricfs::internal::internal(
-        const std::string& gpg_path, const RecipientList & recipients) :
-    gpg_path_(gpg_path), references(0), buffer_set(false), dirty(false),
-    open_(true), recipients_(recipients) { }
+asymmetricfs::internal::internal(const asymmetricfs::options& options) :
+    references(0), buffer_set(false), dirty(false), open_(true),
+    options_(options) { }
 
 asymmetricfs::internal::~internal() {
     (void) close();
@@ -109,13 +107,13 @@ int asymmetricfs::internal::close() {
     int ret = 0;
     if (dirty) {
         std::vector<std::string> argv{"gpg", "-ae", "--no-tty", "--batch"};
-        for (const auto& recipient : recipients_) {
+        for (const auto& recipient : options_.recipients) {
             argv.push_back("-r");
             argv.push_back(static_cast<std::string>(recipient));
         }
 
         /* Start gpg. */
-        subprocess s(-1, fd, gpg_path_, argv);
+        subprocess s(-1, fd, options_.gpg_path, argv);
 
         buffer.splice(s.in(), 0);
 
@@ -211,7 +209,7 @@ int asymmetricfs::internal::load_buffer() {
         }
 
         /* Start gpg. */
-        subprocess s(gpg_stdin, -1, gpg_path_, argv);
+        subprocess s(gpg_stdin, -1, options_.gpg_path, argv);
 
         /* Communicate with gpg. */
         const size_t chunk_size = 1 << 20;
@@ -255,8 +253,9 @@ int asymmetricfs::internal::load_buffer() {
     return ret;
 }
 
-asymmetricfs::asymmetricfs() : read_(false), root_set_(false), gpg_path_("gpg"),
-    next_(0) { }
+asymmetricfs::options::options() : gpg_path("gpg") {}
+
+asymmetricfs::asymmetricfs() : read_(false), root_set_(false), next_(0) { }
 
 asymmetricfs::~asymmetricfs() {
     if (root_set_) {
@@ -328,7 +327,7 @@ int asymmetricfs::create(const char *path_, mode_t mode,
     const fd_t fd = next_fd();
     open_paths_.insert(std::make_pair(path, fd));
 
-    internal * data = new internal(gpg_path_, recipients_);
+    internal * data = new internal(options_);
     data->fd            = ret;
     data->flags         = info->flags;
     data->path          = path;
@@ -389,11 +388,11 @@ void* asymmetricfs::init(struct fuse_conn_info *conn) {
 }
 
 bool asymmetricfs::ready() const {
-    return root_set_ && !(recipients_.empty());
+    return root_set_ && !(options_.recipients.empty());
 }
 
 void asymmetricfs::set_gpg(const std::string& gpg_path) {
-    gpg_path_ = gpg_path;
+    options_.gpg_path = gpg_path;
 }
 
 void asymmetricfs::set_read(bool r) {
@@ -425,7 +424,7 @@ void asymmetricfs::set_recipients(
         throw std::runtime_error("Changing recipient list with open files.");
     }
 
-    recipients_ = recipients;
+    options_.recipients = recipients;
 }
 
 int asymmetricfs::fgetattr(const char *path, struct stat *buf,
@@ -600,7 +599,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
     const fd_t fd = next_fd();
     open_paths_.insert(std::make_pair(path, fd));
 
-    internal * data = new internal(gpg_path_, recipients_);
+    internal * data = new internal(options_);
     data->fd            = ret;
     data->flags         = flags;
     data->path          = path;
@@ -993,7 +992,7 @@ int asymmetricfs::truncate(const char *path_, off_t offset) {
             return -errno;
         }
 
-        internal data(gpg_path_, recipients_);
+        internal data(options_);
         data.fd         = fd;
         data.flags      = flags;
         data.path       = path;
