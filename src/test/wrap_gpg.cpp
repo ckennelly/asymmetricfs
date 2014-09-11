@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     (void) argc;
 
     auto fds = get_file_descriptors(false);
-    for (const auto& fd : fds ){
+    for (const auto& fd : fds) {
         std::cerr << fd.first << " -> " << fd.second << std::endl;
     }
 

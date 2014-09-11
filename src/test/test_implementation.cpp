@@ -191,7 +191,7 @@ TEST_P(IOTest, Access) {
     // We touch file_closed and immediately close it.  We touch file_open and
     // keep it open throughout the test.
     const std::string file_closed("/foo");
-    const std::string file_open  ("/bar");
+    const std::string file_open("/bar");
 
     {
         scoped_file c(fs, file_closed, O_CREAT | O_RDWR);

@@ -313,7 +313,7 @@ TEST_P(PageBufferSpliceTest, DataGap) {
 }
 
 INSTANTIATE_TEST_CASE_P(Splicing, PageBufferSpliceTest,
-   ::testing::Values(0u, 128u, 4096u, 8192u, 8320u));
+    ::testing::Values(0u, 128u, 4096u, 8192u, 8320u));
 
 // The parameter is the memory locking strategy.
 class PageBufferMemoryLockTest :
