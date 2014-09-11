@@ -27,7 +27,9 @@ namespace std { class type_info; }
 #include "implementation.h"
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <sys/prctl.h>
+#include <vector>
 
 static asymmetricfs impl;
 

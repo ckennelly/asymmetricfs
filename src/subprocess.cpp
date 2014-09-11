@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <cstdio>
 #include <stdexcept>
+#include <string>
 #include "subprocess.h"
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 
 subprocess::subprocess(int fd_in, int fd_out, const std::string& file,
         const std::vector<std::string>& argv) : finished_(false) {

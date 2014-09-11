@@ -18,6 +18,7 @@
 
 #include "gpg_helper.h"
 #include <gtest/gtest.h>
+#include <string>
 
 TEST(GPG, GenerateKey) {
     key_specification spec;

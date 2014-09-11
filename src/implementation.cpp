@@ -34,9 +34,11 @@ namespace std { class type_info; }
 #include "page_buffer.h"
 #include <set>
 #include <stdexcept>
+#include <string>
 #include "subprocess.h"
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <vector>
 
 typedef std::unique_lock<std::mutex> scoped_lock;
 typedef std::vector<gpg_recipient> RecipientList;

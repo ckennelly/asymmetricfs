@@ -20,6 +20,7 @@
 #include "implementation.h"
 #include <iostream>
 #include <map>
+#include <string>
 #include "test/file_descriptors.h"
 #include "test/gpg_helper.h"
 #include "test/temporary_directory.h"

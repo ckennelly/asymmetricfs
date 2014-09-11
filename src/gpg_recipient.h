@@ -21,6 +21,8 @@
 
 #include <boost/any.hpp>
 #include <exception>
+#include <string>
+#include <vector>
 
 class invalid_gpg_recipient : public std::exception {
 public:

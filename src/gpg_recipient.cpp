@@ -19,7 +19,9 @@
 #include <boost/program_options.hpp>
 #include <fcntl.h>
 #include "gpg_recipient.h"
+#include <string>
 #include "subprocess.h"
+#include <vector>
 
 invalid_gpg_recipient::invalid_gpg_recipient(const std::string & r) : r_(r) { }
 

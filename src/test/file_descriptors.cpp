@@ -18,8 +18,10 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <map>
 #include <stdexcept>
 #include "test/file_descriptors.h"
+#include <string>
 #include <unistd.h>
 
 std::map<int, std::string> get_file_descriptors(bool return_self) {

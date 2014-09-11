@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include "page_buffer.h"
+#include <string>
 #ifdef HAS_VALGRIND
 #include <valgrind/memcheck.h>
 #endif

@@ -19,7 +19,9 @@
 #include <boost/algorithm/string/erase.hpp>
 #include "gpg_helper.h"
 #include <sstream>
+#include <string>
 #include "subprocess.h"
+#include <vector>
 
 key_specification::key_specification() {}
 

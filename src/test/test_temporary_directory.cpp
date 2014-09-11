@@ -19,6 +19,7 @@
 #include <boost/filesystem/operations.hpp>
 #include <fcntl.h>
 #include <gtest/gtest.h>
+#include <string>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "temporary_directory.h"
