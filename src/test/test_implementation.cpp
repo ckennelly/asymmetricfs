@@ -77,6 +77,12 @@ protected:
         return fs.getattr(path.c_str(), buf);
     }
 
+    size_t file_size(const std::string& path) {
+        struct stat buf;
+        EXPECT_EQ(0, getattr(path, &buf));
+        return size_t(buf.st_size);
+    }
+
     int truncate(const std::string& path, off_t offset) {
         return fs.truncate(path.c_str(), offset);
     }
@@ -150,6 +156,12 @@ public:
 
     void stat(struct stat* buf) {
         ASSERT_EQ(0, fs_.fgetattr(nullptr, buf, &info));
+    }
+
+    size_t file_size() {
+        struct stat buf;
+        stat(&buf);
+        return size_t(buf.st_size);
     }
 
     int truncate(off_t offset) {
@@ -374,36 +386,24 @@ TEST_P(IOTest, TruncateZeroFromCreation) {
         scoped_file f(fs, filename, O_CREAT | O_RDWR);
         f.write(contents);
 
-        // Stat file
-        struct stat buf;
-        f.stat(&buf);
-        EXPECT_EQ(contents.size(), buf.st_size);
+        EXPECT_EQ(contents.size(), f.file_size());
 
         // Truncate
         EXPECT_EQ(0, f.truncate(0));
 
         // Re-stat.
-        f.stat(&buf);
-        EXPECT_EQ(0, buf.st_size);
+        EXPECT_EQ(0u, f.file_size());
     }
 
     // Re-stat.
-    {
-        struct stat buf;
-        EXPECT_EQ(0, getattr(filename, &buf));
-        EXPECT_LE(0, buf.st_size); // getattr returns the size on-disk, rather
-                                   // than decrypted.  TODO:  Do not write
-                                   // empty files.
-    }
+    EXPECT_LE(0u, file_size(filename)); // getattr returns the size on-disk,
+                                        // rather than decrypted.  TODO:  Do not
+                                        // write empty files.
 
     // Re-open if in ReadWrite mode.
     if (GetParam() == IOMode::ReadWrite) {
         scoped_file f(fs, filename, O_RDONLY);
-
-        // Re-stat.
-        struct stat buf;
-        f.stat(&buf);
-        EXPECT_EQ(0, buf.st_size);
+        EXPECT_EQ(0u, f.file_size());
     }
 }
 
@@ -415,50 +415,34 @@ TEST_P(IOTest, TruncateZeroFromExisting) {
     {
         scoped_file f(fs, filename, O_CREAT | O_RDWR);
         f.write(contents);
-
-        // Stat file
-        struct stat buf;
-        f.stat(&buf);
-        EXPECT_EQ(contents.size(), buf.st_size);
+        EXPECT_EQ(contents.size(), f.file_size());
     }
 
     // Re-open, truncate.
     {
         scoped_file f(fs, filename, O_WRONLY);
-
-        // Truncate
         EXPECT_EQ(0, f.truncate(0));
-
-        // Re-stat.
-        struct stat buf;
-        f.stat(&buf);
-        EXPECT_EQ(0, buf.st_size);
+        EXPECT_EQ(0u, f.file_size());
     }
 }
 
 TEST_P(IOTest, TruncatePartial) {
     const std::string filename("/test");
     const std::string contents("abcdefg");
-    off_t offset = 3;
+    size_t offset = 3;
 
     // Open a test file in the filesystem, write to it.
     {
         scoped_file f(fs, filename, O_CREAT | O_RDWR);
         f.write(contents);
 
-        // Stat file
-        struct stat buf;
-        f.stat(&buf);
-        EXPECT_EQ(contents.size(), buf.st_size);
+        EXPECT_EQ(contents.size(), f.file_size());
 
         // Truncate
-        int ret = f.truncate(offset);
+        int ret = f.truncate(off_t(offset));
         if (GetParam() == IOMode::ReadWrite) {
             EXPECT_EQ(0, ret);
-
-            // Re-stat.
-            f.stat(&buf);
-            EXPECT_EQ(offset, buf.st_size);
+            EXPECT_EQ(offset, f.file_size());
         } else {
             // TODO:  Permit truncations of newly created files.
             EXPECT_EQ(-EACCES, ret);
@@ -468,11 +452,7 @@ TEST_P(IOTest, TruncatePartial) {
     // Re-open.
     if (GetParam() == IOMode::ReadWrite) {
         scoped_file f(fs, filename, O_RDONLY);
-
-        // Re-stat.
-        struct stat buf;
-        f.stat(&buf);
-        EXPECT_EQ(offset, buf.st_size);
+        EXPECT_EQ(offset, f.file_size());
 
         // Read contents.
         EXPECT_EQ(contents.substr(0, offset), f.read());
@@ -506,17 +486,12 @@ TEST_P(IOTest, TruncatePath) {
         f.write(contents);
     }
 
-    // Stat file
-    struct stat buf;
-    EXPECT_EQ(0, getattr(filename, &buf));
-    EXPECT_LT(0, buf.st_size);
+    EXPECT_LT(0u, file_size(filename));
 
     // Truncate by path.
     EXPECT_EQ(0, truncate(filename, 0));
 
-    // Stat file.
-    EXPECT_EQ(0, getattr(filename, &buf));
-    EXPECT_EQ(0, buf.st_size);
+    EXPECT_EQ(0u, file_size(filename));
 }
 
 TEST_P(IOTest, TruncatePathPartial) {
@@ -524,7 +499,7 @@ TEST_P(IOTest, TruncatePathPartial) {
 
     const std::string filename("/test");
     const std::string contents("abcdefg");
-    const off_t offset = 3;
+    const size_t offset = 3;
 
     // Touch a file and write to it.
     {
@@ -532,20 +507,16 @@ TEST_P(IOTest, TruncatePathPartial) {
         f.write(contents);
     }
 
-    // Stat file
-    struct stat buf;
-    EXPECT_EQ(0, getattr(filename, &buf));
-    EXPECT_LT(0, buf.st_size);
+    EXPECT_LT(0u, file_size(filename));
 
     // Truncate by path.
-    ret = truncate(filename, offset);
+    ret = truncate(filename, off_t(offset));
     if (GetParam() == IOMode::ReadWrite) {
         EXPECT_EQ(0, ret);
 
         // Verify file contents.
         scoped_file f(fs, filename, O_RDONLY);
-        f.stat(&buf);
-        EXPECT_EQ(offset, buf.st_size);
+        EXPECT_EQ(offset, f.file_size());
 
         EXPECT_EQ(contents.substr(0, offset), f.read());
     } else {
@@ -561,17 +532,12 @@ TEST_P(IOTest, TruncatePathOpenFile) {
     scoped_file f(fs, filename, O_CREAT | O_RDWR);
     f.write(contents);
 
-    // Stat file
-    struct stat buf;
-    f.stat(&buf);
-    EXPECT_EQ(contents.size(), buf.st_size);
+    EXPECT_EQ(contents.size(), f.file_size());
 
     // Truncate by path.
     EXPECT_EQ(0, truncate(filename, 0));
 
-    // Stat file.
-    f.stat(&buf);
-    EXPECT_EQ(0, buf.st_size);
+    EXPECT_EQ(0u, f.file_size());
 }
 
 TEST_P(IOTest, ListEmptyDirectory) {
@@ -785,12 +751,8 @@ TEST_P(IOTest, ClosedFileDescriptors) {
 
     // The files should have non-zero size, even if we can't read them.  If the
     // GPG wrapper aborted, the files will be empty.
-    struct stat buf;
-    EXPECT_EQ(0, getattr(path_a, &buf));
-    EXPECT_NE(0, buf.st_size);
-
-    EXPECT_EQ(0, getattr(path_b, &buf));
-    EXPECT_NE(0, buf.st_size);
+    EXPECT_NE(0u, file_size(path_a));
+    EXPECT_NE(0u, file_size(path_b));
 
     // If we are in read-write mode, check the contents.
     if (GetParam() == IOMode::ReadWrite) {
@@ -994,10 +956,7 @@ TEST_P(IOTest, StatWhileOpen) {
     scoped_file f(fs, filename, O_CREAT | O_RDWR);
     f.write(contents);
 
-    // Stat
-    struct stat buf;
-    EXPECT_EQ(0, getattr(filename, &buf));
-    EXPECT_EQ(contents.size(), buf.st_size);
+    EXPECT_EQ(contents.size(), file_size(filename));
 }
 
 TEST_P(IOTest, CreateSymlink) {
