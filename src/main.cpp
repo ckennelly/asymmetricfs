@@ -167,7 +167,9 @@ int main(int argc, char **argv) {
         ("gpg-binary",
             po::value<std::string>(&gpg_path)->default_value(STR(GPG_PATH)),
             "Path to GPG binary.")
-        ("recipient,r", po::value<RecipientList>(&recipients)->required(), "Key to encrypt to.");
+        ("recipient,r",
+            po::value<RecipientList>(&recipients)->required(),
+            "Key to encrypt to.");
 
     po::options_description hidden("Hidden Options");
     hidden.add_options()

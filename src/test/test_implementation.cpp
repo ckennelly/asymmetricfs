@@ -107,7 +107,8 @@ protected:
     asymmetricfs fs;
 private:
     static int filler(
-            void *buf_, const char *name_, const struct stat *stbuf, off_t off) {
+            void *buf_, const char *name_, const struct stat *stbuf,
+            off_t off) {
         auto buf = static_cast<stat_map*>(buf_);
         const std::string name(name_);
         (void) off;
