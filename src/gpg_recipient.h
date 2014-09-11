@@ -24,7 +24,7 @@
 
 class invalid_gpg_recipient : public std::exception {
 public:
-    invalid_gpg_recipient(const std::string & r);
+    explicit invalid_gpg_recipient(const std::string & r);
     ~invalid_gpg_recipient() throw();
 
     const std::string & recipient() const;
