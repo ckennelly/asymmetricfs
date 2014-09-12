@@ -780,6 +780,11 @@ TEST_P(IOTest, CreateExisting) {
     }
 }
 
+TEST_P(IOTest, ReadInvalidSymlink) {
+    char buf[16];
+    EXPECT_EQ(-ENOENT, fs.readlink("/foo", buf, sizeof(buf)));
+}
+
 TEST_P(IOTest, ReadInvalidDirectoryDescriptor) {
     struct fuse_file_info info;
     info.fh = -1;
