@@ -780,6 +780,14 @@ TEST_P(IOTest, CreateExisting) {
     }
 }
 
+TEST_P(IOTest, ReadInvalidDirectoryDescriptor) {
+    struct fuse_file_info info;
+    info.fh = -1;
+
+    char buf[16];
+    EXPECT_EQ(-EBADF, fs.readdir(nullptr, buf, nullptr, 0, &info));
+}
+
 TEST_P(IOTest, ReleaseInvalidDirectoryDescriptor) {
     struct fuse_file_info info;
     info.fh = -1;
