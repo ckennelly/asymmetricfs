@@ -841,13 +841,20 @@ int asymmetricfs::release(const char *path, struct fuse_file_info *info) {
 int asymmetricfs::releasedir(const char *path, struct fuse_file_info *info) {
     (void) path;
 
-    DIR *dir = reinterpret_cast<DIR *>(info->fh);
+    // Verify file handle.
+    auto fh = info->fh;
+    auto it = open_dirs_.find(fh);
+    if (it == open_dirs_.end()) {
+        return -EBADF;
+    }
+
+    DIR *dir = reinterpret_cast<DIR *>(fh);
     int ret = ::closedir(dir);
     if (ret != 0) {
         return -errno;
     }
 
-    open_dirs_.erase(info->fh);
+    open_dirs_.erase(it);
     return 0;
 }
 
