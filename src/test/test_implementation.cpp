@@ -571,6 +571,11 @@ TEST_P(IOTest, ListEmptyDirectory) {
     }
 }
 
+TEST_P(IOTest, ListMissingDirectory) {
+    struct fuse_file_info info;
+    EXPECT_EQ(-ENOENT, fs.opendir("/foo", &info));
+}
+
 TEST_P(IOTest, CreateRemoveDirectory) {
     const std::string directory("foo");
     const std::string full_directory("/" + directory);
