@@ -793,6 +793,14 @@ TEST_P(IOTest, ReadInvalidDirectoryDescriptor) {
     EXPECT_EQ(-EBADF, fs.readdir(nullptr, buf, nullptr, 0, &info));
 }
 
+TEST_P(IOTest, ReadNegativeOffset) {
+    scoped_file f(fs, "/foo", O_CREAT | O_RDWR);
+
+    std::string buffer;
+    EXPECT_EQ(0, f.read(&buffer, -5, 5));
+    EXPECT_EQ(0, buffer.size());
+}
+
 TEST_P(IOTest, ReleaseInvalidDirectoryDescriptor) {
     struct fuse_file_info info;
     info.fh = -1;
