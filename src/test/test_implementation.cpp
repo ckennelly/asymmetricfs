@@ -813,6 +813,13 @@ TEST_P(IOTest, ReleaseInvalidDirectoryDescriptor) {
     EXPECT_EQ(-EBADF, fs.releasedir(nullptr, &info));
 }
 
+TEST_P(IOTest, ReleaseInvalidFileDescriptor) {
+    struct fuse_file_info info;
+    info.fh = -1;
+
+    EXPECT_EQ(0, fs.release(nullptr, &info));
+}
+
 TEST_P(IOTest, Rename) {
     const std::string oldname("foo");
     const std::string newname("bar");
