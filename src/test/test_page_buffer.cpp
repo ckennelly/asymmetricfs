@@ -21,7 +21,9 @@
 #include <gtest/gtest.h>
 #include "memory_lock.h"
 #include "page_buffer.h"
+#include <stdexcept>
 #include <string>
+#include <sys/resource.h>
 #ifdef HAS_VALGRIND
 #include <valgrind/memcheck.h>
 #endif
@@ -337,6 +339,54 @@ TEST_P(PageBufferMemoryLockTest, ReadWrite) {
     ssize_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
     EXPECT_EQ(data.size(), ret);
     EXPECT_EQ(data, tmp);
+}
+
+// A helper class for temporary changing resource limits.
+class scoped_rlimit {
+public:
+    scoped_rlimit(int resource, rlim_t value) : resource_(resource) {
+        int ret = getrlimit(resource, &old_);
+        if (ret != 0) {
+            throw std::runtime_error("Unable to retrieve resource limit.");
+        }
+
+        struct rlimit r;
+        r.rlim_cur = value;
+        r.rlim_max = old_.rlim_max;
+        ret = setrlimit(resource, &r);
+        if (ret != 0) {
+            throw std::runtime_error("Unable to set resource limit.");
+        }
+    }
+
+    ~scoped_rlimit() {
+        // We cannot throw in a destructor, so the error is suppressed.
+        (void) setrlimit(resource_, &old_);
+    }
+private:
+    int resource_;
+    struct rlimit old_;
+};
+
+TEST_P(PageBufferMemoryLockTest, NoLockablePages) {
+    scoped_rlimit lim(RLIMIT_MEMLOCK, 0);
+
+    std::string data = make_data(4096);
+
+    if (GetParam() != memory_lock::none) {
+        EXPECT_THROW(buffer.write(data.size(), 0, &data[0]), std::bad_alloc);
+    } else {
+        EXPECT_NO_THROW(buffer.write(data.size(), 0, &data[0]));
+        EXPECT_EQ(data.size(), buffer.size());
+
+        std::string tmp(data.size(), '\1');
+        #ifdef HAS_VALGRIND
+        VALGRIND_MAKE_MEM_UNDEFINED(&tmp[0], data.size());
+        #endif
+        ssize_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
+        EXPECT_EQ(data.size(), ret);
+        EXPECT_EQ(data, tmp);
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(Locking, PageBufferMemoryLockTest,

@@ -75,12 +75,9 @@ page_allocation::page_allocation(size_t sz, memory_lock m) : size_(sz) {
             break;
         case memory_lock::none:
             break;
-        default:
-            __builtin_unreachable();
     }
 
-    ptr_ = mmap(NULL, size_, PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    ptr_ = mmap(NULL, size_, PROT_READ | PROT_WRITE, flags, -1, 0);
     if (ptr_ == MAP_FAILED) {
         throw std::bad_alloc();
     }
