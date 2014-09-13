@@ -45,7 +45,7 @@ ENDIF()
 
 # Google Test
 ADD_SUBDIRECTORY(third_party/googletest)
-INCLUDE_DIRECTORIES(third_party/googletest/include)
+INCLUDE_DIRECTORIES(SYSTEM third_party/googletest/include)
 
 # Build targets
 ENABLE_TESTING()
