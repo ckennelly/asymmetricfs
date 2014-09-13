@@ -38,7 +38,6 @@ ENDIF()
 
 # GPG binary path, used for defaults.
 FIND_PROGRAM(GPG_PATH "gpg")
-MESSAGE(STATUS "${GPG_PATH}")
 IF (GPG_PATH)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} '-DGPG_PATH=${GPG_PATH}'")
 ENDIF()
