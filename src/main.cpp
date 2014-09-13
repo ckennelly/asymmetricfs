@@ -334,6 +334,7 @@ int main(int argc, char **argv) {
                           << strerror(errno) << std::endl;
                 return 1;
             }
+            break;
         }
         case memory_lock::buffers:
         case memory_lock::none:
