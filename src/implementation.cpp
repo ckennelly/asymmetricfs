@@ -309,7 +309,7 @@ int asymmetricfs::create(const char *path_, mode_t mode,
 
     assert(info);
     int ret;
-    do {
+    while (true) {
         ret = ::openat(root_, relpath.c_str(), make_rdwr(info->flags), mode);
         if (ret >= 0) {
             break;
@@ -323,7 +323,7 @@ int asymmetricfs::create(const char *path_, mode_t mode,
         }
 
         return -errno;
-    } while (0);
+    }
 
     /* Update list of open files. */
     scoped_lock l(mx_);
@@ -586,7 +586,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
     flags |= O_CLOEXEC;
 
     int ret;
-    do {
+    while (true) {
         ret = ::openat(root_, relpath.c_str(), make_rdwr(flags));
         if (ret >= 0) {
             break;
@@ -600,7 +600,7 @@ int asymmetricfs::open(const char *path_, struct fuse_file_info *info) {
         }
 
         return -errno;
-    } while (0);
+    }
 
     /* Update list of open files. */
     const fd_t fd = next_fd();
