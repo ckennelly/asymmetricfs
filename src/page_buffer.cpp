@@ -34,9 +34,9 @@
 namespace {
 
 /* This splices in zero pages into fd, returning the value from vmsplice. */
-ssize_t zero_splice(int fd, size_t size, int flags) {
+ssize_t zero_splice(int fd, size_t size, unsigned int flags) {
     // Clean up flags, as we're going to reuse the same allocation many times.
-    flags &= ~SPLICE_F_GIFT;
+    flags &= ~unsigned(SPLICE_F_GIFT);
 
     const size_t max_allocation = 1 << 20 /* 1MB */;
     size_t allocation_size = std::min(size, max_allocation);
@@ -206,7 +206,7 @@ void page_buffer::write(size_t n, size_t offset, const void *buffer) {
     }
 }
 
-ssize_t page_buffer::splice(int fd, int flags) {
+ssize_t page_buffer::splice(int fd, unsigned int flags) {
     // The last page is special and is handled accordingly.
     const size_t last_whole_page = round_down_to_page(buffer_size_);
 

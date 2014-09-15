@@ -93,7 +93,7 @@ public:
      *
      * The return value from vmsplice is passed on.
      */
-     ssize_t splice(int fd, int flags);
+     ssize_t splice(int fd, unsigned int flags);
 private:
     /* Noncopyable */
     page_buffer(const page_buffer &) = delete;
