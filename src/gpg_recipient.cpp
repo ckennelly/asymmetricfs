@@ -79,7 +79,7 @@ void validate(boost::any & v, const std::vector<std::string> & values,
 
     try {
         v = boost::any(gpg_recipient(r));
-    } catch (invalid_gpg_recipient & ex) {
+    } catch (invalid_gpg_recipient&) {
         using boost::program_options::validation_error;
 
         throw validation_error(validation_error::invalid_option_value);
