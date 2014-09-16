@@ -61,7 +61,7 @@ ssize_t zero_splice(int fd, size_t size, unsigned int flags) {
         }
     }
 
-    return position;
+    return static_cast<ssize_t>(position);
 }
 
 }  // namespace
@@ -268,10 +268,10 @@ ssize_t page_buffer::splice(int fd, unsigned int flags) {
         assert(is_page_multiple(gap));
 
         ssize_t ret = zero_splice(fd, last_whole_page, flags);
-        if (ret == -1) {
+        if (ret < 0) {
             return ret;
         }
-        position += ret;
+        position += static_cast<size_t>(ret);
     }
 
     // If anything remains, write it normally.
@@ -289,7 +289,7 @@ ssize_t page_buffer::splice(int fd, unsigned int flags) {
         position += buffer_size_ - last_whole_page;
     }
 
-    return position;
+    return static_cast<ssize_t>(position);
 }
 
 size_t page_buffer::size() const {
