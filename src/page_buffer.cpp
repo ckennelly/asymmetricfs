@@ -114,8 +114,8 @@ size_t page_allocation::size() const {
     return size_;
 }
 
-page_buffer::page_buffer(memory_lock m) : page_size_(sysconf(_SC_PAGESIZE)),
-    buffer_size_(0), mlock_(m) { }
+page_buffer::page_buffer(memory_lock m) :
+    page_size_(size_t(sysconf(_SC_PAGESIZE))), buffer_size_(0), mlock_(m) { }
 
 page_buffer::~page_buffer() { }
 
