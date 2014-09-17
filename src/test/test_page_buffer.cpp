@@ -336,7 +336,7 @@ TEST_P(PageBufferMemoryLockTest, ReadWrite) {
     #ifdef HAS_VALGRIND
     VALGRIND_MAKE_MEM_UNDEFINED(&tmp[0], data.size());
     #endif
-    ssize_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
+    size_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
     EXPECT_EQ(data.size(), ret);
     EXPECT_EQ(data, tmp);
 }
@@ -383,7 +383,7 @@ TEST_P(PageBufferMemoryLockTest, NoLockablePages) {
         #ifdef HAS_VALGRIND
         VALGRIND_MAKE_MEM_UNDEFINED(&tmp[0], data.size());
         #endif
-        ssize_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
+        size_t ret = buffer.read(tmp.size(), 0, &tmp[0]);
         EXPECT_EQ(data.size(), ret);
         EXPECT_EQ(data, tmp);
     }
