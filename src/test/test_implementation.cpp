@@ -149,8 +149,9 @@ public:
         int ret = fs_.read(nullptr, &(*buffer)[0], max_size, offset, &info);
         if (ret >= 0) {
             EXPECT_GE(max_size, ret);
-            if (size_t(ret) <= max_size) {
-                buffer->resize(ret);
+            const size_t sret = static_cast<size_t>(ret);
+            if (sret <= max_size) {
+                buffer->resize(sret);
             }
         }
         return ret;
@@ -261,7 +262,7 @@ TEST_P(IOTest, ReadWrite) {
         int ret = f.read(&buffer);
         if (GetParam() == IOMode::ReadWrite) {
             ASSERT_EQ(contents.size(), ret);
-            buffer.resize(ret);
+            buffer.resize(static_cast<size_t>(ret));
             EXPECT_EQ(contents, buffer);
         } else {
             EXPECT_EQ(-EACCES, ret);
@@ -320,7 +321,7 @@ TEST_P(IOTest, Append) {
         int ret = f.read(&buffer);
         if (GetParam() == IOMode::ReadWrite) {
             ASSERT_EQ(contents1.size() + contents2.size(), ret);
-            buffer.resize(ret);
+            buffer.resize(static_cast<size_t>(ret));
             EXPECT_EQ(contents1 + contents2, buffer);
         } else {
             EXPECT_EQ(-EACCES, ret);
