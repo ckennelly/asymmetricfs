@@ -19,12 +19,16 @@
 #include <gtest/gtest.h>
 #include "implementation.h"
 #include <iostream>
+#include <limits>
 #include <map>
 #include <string>
 #include "test/file_descriptors.h"
 #include "test/gpg_helper.h"
 #include "test/temporary_directory.h"
 #include <time.h>
+
+static constexpr auto invalid_file_handle =
+    std::numeric_limits<decltype(fuse_file_info::fh)>::max();
 
 enum class IOMode {
     ReadWrite,
@@ -237,7 +241,7 @@ TEST_P(IOTest, AccessInvalidFile) {
 
 TEST_P(IOTest, ReadInvalidDescriptor) {
     struct fuse_file_info info;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
     char buf[16];
     EXPECT_EQ(-EBADF, fs.read(nullptr, buf, sizeof(buf), 0, &info));
 }
@@ -272,7 +276,7 @@ TEST_P(IOTest, ReadWrite) {
 
 TEST_P(IOTest, WriteInvalidDescriptor) {
     struct fuse_file_info info;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
 
     char buf[16];
     EXPECT_EQ(-EBADF, fs.write(nullptr, buf, sizeof(buf), 0, &info));
@@ -346,7 +350,7 @@ TEST_P(IOTest, TwoHandles) {
 
 TEST_P(IOTest, TruncateInvalidDescriptor) {
     struct fuse_file_info info;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
     int ret = fs.ftruncate(nullptr, 0, &info);
     EXPECT_EQ(-EBADF, ret);
 }
@@ -793,7 +797,7 @@ TEST_P(IOTest, ReadInvalidSymlink) {
 
 TEST_P(IOTest, ReadInvalidDirectoryDescriptor) {
     struct fuse_file_info info;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
 
     char buf[16];
     EXPECT_EQ(-EBADF, fs.readdir(nullptr, buf, nullptr, 0, &info));
@@ -809,14 +813,14 @@ TEST_P(IOTest, ReadNegativeOffset) {
 
 TEST_P(IOTest, ReleaseInvalidDirectoryDescriptor) {
     struct fuse_file_info info;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
 
     EXPECT_EQ(-EBADF, fs.releasedir(nullptr, &info));
 }
 
 TEST_P(IOTest, ReleaseInvalidFileDescriptor) {
     struct fuse_file_info info;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
 
     EXPECT_EQ(0, fs.release(nullptr, &info));
 }
@@ -985,7 +989,7 @@ TEST_P(IOTest, StatPathInvalidArgument) {
 TEST_P(IOTest, StatInvalidDescriptor) {
     struct fuse_file_info info;
     struct stat buf;
-    info.fh = -1;
+    info.fh = invalid_file_handle;
     EXPECT_EQ(-EBADF, fs.fgetattr(nullptr, &buf, &info));
 }
 
