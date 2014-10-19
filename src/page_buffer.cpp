@@ -64,6 +64,23 @@ ssize_t zero_splice(int fd, size_t size, unsigned int flags) {
     return static_cast<ssize_t>(position);
 }
 
+template<typename T>
+static auto find_block(T& m, size_t key) -> decltype(m.find(key)) {
+    if (m.empty()) {
+        return m.end();
+    }
+
+    auto it = m.lower_bound(key);
+    if (it != m.end()) {
+        return it;
+    }
+
+    // This operation is safe, as m.size() > 0.
+    --it;
+    assert(it->first <= key);
+    return it;
+}
+
 }  // namespace
 
 page_allocation::page_allocation(size_t sz, memory_lock m) : size_(sz) {
@@ -126,7 +143,7 @@ size_t page_buffer::read(size_t n, size_t offset, void *buffer) const {
     n = offset < buffer_size_ ? std::min(n, buffer_size_ - offset) : 0;
 
     size_t position = 0;
-    for (auto it = page_allocations_.lower_bound(base);
+    for (auto it = find_block(page_allocations_, base);
             it != page_allocations_.end() && it->first < n + offset; ++it) {
         if (it->first > position + offset) {
             // Zerofill gap.

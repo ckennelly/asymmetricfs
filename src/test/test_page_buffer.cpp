@@ -82,6 +82,8 @@ public:
     PageBufferTest() : buffer(memory_lock::none) {}
 
     page_buffer buffer;
+
+    constexpr static size_t page_size = 4096;
 };
 
 TEST_F(PageBufferTest, Write) {
@@ -175,6 +177,29 @@ TEST_F(PageBufferTest, VerifyContents) {
         buffer.read(verify_size, verify_offset, &actual_hunk[0]);
         EXPECT_EQ(expect_hunk, actual_hunk);
     }
+}
+
+TEST_F(PageBufferTest, ReadMiddleAllocationWholePage) {
+    const std::string data = make_data(2 * page_size);
+
+    buffer.write(data.size(), 0, &data[0]);
+    EXPECT_EQ(data.size(), buffer.size());
+
+    std::string tmp(page_size, '\0');
+    buffer.read(tmp.size(), page_size, &tmp[0]);
+    EXPECT_EQ(data.substr(page_size), tmp);
+}
+
+TEST_F(PageBufferTest, ReadMiddleAllocationPartialPage) {
+    const size_t offset = 1024;
+    const std::string data = make_data(page_size + offset);
+
+    buffer.write(data.size(), 0, &data[0]);
+    EXPECT_EQ(data.size(), buffer.size());
+
+    std::string tmp(offset, '\0');
+    buffer.read(tmp.size(), page_size, &tmp[0]);
+    EXPECT_EQ(data.substr(page_size), tmp);
 }
 
 TEST_F(PageBufferTest, Resize) {
