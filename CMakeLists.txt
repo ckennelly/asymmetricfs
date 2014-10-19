@@ -8,16 +8,17 @@ FIND_PACKAGE(Boost 1.49 REQUIRED program_options system)
 FIND_LIBRARY(FUSE "fuse")
 
 # Warnings
-ADD_COMPILE_OPTIONS(-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wuninitialized -Werror -Wno-missing-field-initializers -Wnon-virtual-dtor -g)
+SET(WARNINGS "-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wredundant-decls -Winline -Wuninitialized -Werror -Wno-missing-field-initializers")
+SET(CMAKE_CXX_FLAGS "${WARNINGS} -Wnon-virtual-dtor -g")
 
 # C++11 support
 INCLUDE(TestCXXAcceptsFlag)
 CHECK_CXX_ACCEPTS_FLAG("-std=c++11" USE11FLAG)
 CHECK_CXX_ACCEPTS_FLAG("-std=c++0x" USE0xFLAG)
 IF(USE11FLAG)
-    ADD_COMPILE_OPTIONS("-std=c++11")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 ELSEIF(USE0xFLAG)
-    ADD_COMPILE_OPTIONS("-std=c++0x")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 ELSE()
     MESSAGE(ERROR "C++0x/C++11 support is required.")
 ENDIF()
@@ -26,19 +27,19 @@ ENDIF()
 INCLUDE(CheckIncludeFileCXX)
 CHECK_INCLUDE_FILE_CXX("valgrind/memcheck.h" HAS_VALGRIND)
 IF (HAS_VALGRIND)
-    ADD_DEFINITIONS("-DHAS_VALGRIND")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAS_VALGRIND")
 ENDIF()
 
 # xattr support
 CHECK_INCLUDE_FILE_CXX("attr/xattr.h" HAS_XATTR)
 IF (HAS_XATTR)
-    ADD_DEFINITIONS("-DHAS_XTTR")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAS_XTTR")
 ENDIF()
 
 # GPG binary path, used for defaults.
 FIND_PROGRAM(GPG_PATH "gpg")
 IF (GPG_PATH)
-    ADD_DEFINITIONS("-DGPG_PATH=${GPG_PATH}")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} '-DGPG_PATH=${GPG_PATH}'")
 ENDIF()
 
 # Google Test
