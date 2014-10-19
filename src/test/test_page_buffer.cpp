@@ -141,9 +141,10 @@ TEST_F(PageBufferTest, VerifyContents) {
     std::string expected;
 
     for (int step = 0; step < steps; step++) {
-        unsigned offset = rand_r(&seed) % max_size;
-        unsigned size   = rand_r(&seed);
-        size = std::min(max_size - offset, size);
+        const unsigned offset =
+            static_cast<unsigned>(rand_r(&seed)) % max_size;
+        const unsigned size = std::min(max_size - offset,
+            static_cast<unsigned>(rand_r(&seed)));
 
         /* Generate some data to apply. */
         std::string patch(size, '\0');
@@ -163,9 +164,11 @@ TEST_F(PageBufferTest, VerifyContents) {
         /* Verify results at a random offset. */
         ASSERT_EQ(expected.size(), buffer.size());
 
-        size_t verify_offset = rand_r(&seed) % expected.size();
-        size_t verify_size   = rand_r(&seed) % expected.size();
-        verify_size = std::min(verify_size, expected.size() - verify_offset);
+        const size_t verify_offset =
+            static_cast<unsigned>(rand_r(&seed)) % expected.size();
+        const size_t verify_size   = std::min(
+            expected.size() - verify_offset,
+            static_cast<unsigned>(rand_r(&seed)) % expected.size());
 
         std::string expect_hunk = expected.substr(verify_offset, verify_size);
         std::string actual_hunk(verify_size, '\0');
