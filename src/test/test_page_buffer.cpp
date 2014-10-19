@@ -28,6 +28,8 @@
 #include <valgrind/memcheck.h>
 #endif
 
+constexpr static size_t page_size = 4096;
+
 std::string make_data(size_t size) {
     std::string ret(size, '\0');
     for (size_t i = 0; i < size; i++) {
@@ -82,8 +84,6 @@ public:
     PageBufferTest() : buffer(memory_lock::none) {}
 
     page_buffer buffer;
-
-    constexpr static size_t page_size = 4096;
 };
 
 TEST_F(PageBufferTest, Write) {
@@ -266,6 +266,34 @@ TEST_P(PageBufferSpliceTest, ContiguousStart) {
     buffer.write(data.size(), 0, &data[0]);
     EXPECT_EQ(data.size(), buffer.size());
 
+    ssize_t ret = buffer.splice(loop.write(), 0);
+    EXPECT_EQ(data.size(), ret);
+    loop.close_writer();
+
+    // Read data of the pipe and verify the contents.
+    std::string tmp(data.size(), '\0');
+    ssize_t read_bytes = read(loop.read(), &tmp[0], tmp.size());
+    EXPECT_EQ(data.size(), read_bytes);
+    EXPECT_EQ(data, tmp);
+
+    // Check EOF.
+    EXPECT_TRUE(loop.eof());
+}
+
+TEST_P(PageBufferSpliceTest, SpliceOverMultipleAllocations) {
+    const std::string data = make_data(GetParam());
+    size_t offset;
+    for (offset = 0; offset + page_size <= data.size(); offset += page_size) {
+        buffer.write(page_size, offset, &data[offset]);
+    }
+    // Write tail, if any.
+    if (offset < data.size()) {
+        buffer.write(data.size() - offset, offset, &data[offset]);
+    }
+
+    EXPECT_EQ(data.size(), buffer.size());
+
+    // Splice across several allocations.
     ssize_t ret = buffer.splice(loop.write(), 0);
     EXPECT_EQ(data.size(), ret);
     loop.close_writer();

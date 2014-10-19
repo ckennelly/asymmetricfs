@@ -294,6 +294,11 @@ ssize_t page_buffer::splice(int fd, unsigned int flags) {
     // If anything remains, write it normally.
     if (last_whole_page < buffer_size_) {
         assert(it != page_allocations_.end());
+        // Advance the iterator if we've exhausted the current allocation chunk.
+        if (last_whole_page == it->first + it->second.size()) {
+            ++it;
+            assert(it != page_allocations_.end());
+        }
         assert(it->first <= last_whole_page);
 
         size_t internal_offset = last_whole_page - it->first;
