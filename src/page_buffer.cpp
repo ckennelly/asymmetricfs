@@ -33,6 +33,39 @@
 
 namespace {
 
+// flush_iov iteratively calls vmsplice to process all of the data specified in
+// the io vector.  It mutates the vector with its progress.
+ssize_t flush_iov(int fd, std::vector<iovec>* ios, int flags) {
+    const size_t n_ios = ios->size();
+    iovec* v = &(*ios)[0];
+
+    for (size_t index = 0; index < n_ios; ) {
+        ssize_t ret = vmsplice(fd, v + index, n_ios - index, flags);
+        if (ret == -1) {
+            return ret;
+        }
+
+        // Advance long the iovec instances for the number of bytes read.
+        for (size_t bytes = static_cast<size_t>(ret);
+                index < n_ios && bytes > 0; ) {
+            size_t len = std::min(v[index].iov_len, bytes);
+
+            v[index].iov_len -= len;
+            bytes -= len;
+            if (v[index].iov_len == 0) {
+                // Move to the next allocation.
+                index++;
+            } else {
+                // Advance within this allocation.
+                v[index].iov_base =
+                    static_cast<uint8_t*>(v[index].iov_base) + len;
+            }
+        }
+    }
+
+    return 0;
+}
+
 /* This splices in zero pages into fd, returning the value from vmsplice. */
 ssize_t zero_splice(int fd, size_t size, unsigned int flags) {
     // Clean up flags, as we're going to reuse the same allocation many times.
@@ -48,15 +81,15 @@ ssize_t zero_splice(int fd, size_t size, unsigned int flags) {
         while (ios.size() < IOV_MAX && position < size) {
             iovec v;
             v.iov_base = tmp.ptr();
-            v.iov_len = std::min(tmp.size(), position - size);
+            v.iov_len = std::min(tmp.size(), size - position);
             ios.push_back(v);
 
             position += v.iov_len;
         }
+        assert(position <= size);
 
-        assert(!(ios.empty()));
-        ssize_t ret = vmsplice(fd, &ios[0], ios.size(), flags);
-        if (ret == -1) {
+        ssize_t ret = flush_iov(fd, &ios, flags);
+        if (ret < 0) {
             return ret;
         }
     }
@@ -257,6 +290,9 @@ ssize_t page_buffer::splice(int fd, unsigned int flags) {
             // stop early.
             size_t internal_size = std::min(it->second.size(),
                 last_whole_page - position);
+            if (internal_size == 0) {
+                break;
+            }
 
             iovec v;
             v.iov_base = const_cast<void*>(it->second.ptr());
@@ -272,9 +308,8 @@ ssize_t page_buffer::splice(int fd, unsigned int flags) {
             ++it;
         }
 
-        assert(!(ios.empty()));
-        ssize_t ret = vmsplice(fd, &ios[0], ios.size(), flags);
-        if (ret == -1) {
+        ssize_t ret = flush_iov(fd, &ios, flags);
+        if (ret < 0) {
             return ret;
         }
     }

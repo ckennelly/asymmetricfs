@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include "memory_lock.h"
 #include "page_buffer.h"
+#include "pthread.h"
 #include <stdexcept>
 #include <string>
 #include <sys/resource.h>
@@ -77,6 +78,29 @@ private:
     int fds[2];
     bool reader_open;
     bool writer_open;
+};
+
+class AsynchronousReader {
+public:
+    AsynchronousReader(std::function<void ()> f) : f_(f){
+        int ret = pthread_create(
+            &thread_, nullptr, AsynchronousReader::helper, this);
+        if (ret != 0) {
+            throw std::runtime_error("Unable to create thread.");
+        }
+    }
+
+    ~AsynchronousReader() {
+        (void) pthread_join(thread_, nullptr);
+    }
+private:
+    static void* helper(void* arg) {
+        static_cast<AsynchronousReader*>(arg)->f_();
+        return nullptr;
+    }
+
+    std::function<void ()> f_;
+    pthread_t thread_;
 };
 
 class PageBufferTest : public ::testing::Test {
@@ -248,6 +272,89 @@ TEST_F(PageBufferTest, Clear) {
 
     buffer.clear();
     EXPECT_EQ(0u, buffer.size());
+}
+
+TEST_F(PageBufferTest, LargeGap) {
+    Pipe loop;
+
+    const size_t n_pages = 16040;
+    std::string data(4096, 'a');
+    buffer.write(data.size(), 4096 * (n_pages - 1), &data[0]);
+
+    // The pipe we are writing to will quickly fill up, so we need to read
+    // asynchronously.
+    bool status = false;
+    {
+        AsynchronousReader a([&loop, n_pages, &status](){
+            std::string tmp(4096, '\0');
+
+            const std::string zero(4096, '\0');
+            const std::string final(4096, 'a');
+
+            // Read data of the pipe and verify the contents.
+            for (size_t i = 0; i < n_pages; i++) {
+                ssize_t read_bytes;
+                do {
+                    read_bytes = read(loop.read(), &tmp[0], tmp.size());
+                } while (read_bytes == 0);
+                EXPECT_EQ(tmp.size(), read_bytes);
+
+                status |= tmp != (i < n_pages - 1 ? zero : final);
+            }
+        });
+
+        ssize_t ret = buffer.splice(loop.write(), 0);
+        EXPECT_EQ(n_pages * data.size(), ret);
+        loop.close_writer();
+    }
+
+    EXPECT_FALSE(status);
+}
+
+TEST_F(PageBufferTest, LargeFile) {
+    Pipe loop;
+
+    const size_t n_pages = 16040;
+    std::string data(4096, '\0');
+    for (size_t i = 0; i < n_pages; i++) {
+        memcpy(&data[0], &i, sizeof(i));
+        memcpy(&data[data.size() - sizeof(i)], &i, sizeof(i));
+        buffer.write(data.size(), 4096 * i, &data[0]);
+    }
+
+    // The pipe we are writing to will quickly fill up, so we need to read
+    // asynchronously.
+    bool status = false;
+    {
+        AsynchronousReader a([&loop, n_pages, &status](){
+            std::string tmp(4096, '\0');
+
+            // Read data of the pipe and verify the contents.
+            for (size_t i = 0; i < n_pages; i++) {
+                ssize_t read_bytes;
+                do {
+                    read_bytes = read(loop.read(), &tmp[0], tmp.size());
+                    if (read_bytes == 0) {
+                        sleep(1);
+                    }
+                } while (read_bytes == 0);
+                EXPECT_EQ(tmp.size(), read_bytes);
+
+                size_t start, end;
+                memcpy(&start, &tmp[0], sizeof(start));
+                memcpy(&end, &tmp[tmp.size() - sizeof(end)], sizeof(end));
+
+                status |= (i != start);
+                status |= (i != end);
+            }
+        });
+
+        ssize_t ret = buffer.splice(loop.write(), 0);
+        EXPECT_EQ(n_pages * data.size(), ret);
+        loop.close_writer();
+    }
+
+    EXPECT_FALSE(status);
 }
 
 // The parameter is the number of set bytes.
