@@ -1130,7 +1130,7 @@ TEST_P(IOTest, LargeFile) {
     fs.set_mlock(memory_lock::none);
 
     const std::string filename("/test");
-    const size_t n_pages = 16040;
+    const size_t n_pages = 1024;
     // Open a test file in the filesystem, write to it.
     {
         scoped_file f(fs, filename, O_CREAT | O_RDWR);

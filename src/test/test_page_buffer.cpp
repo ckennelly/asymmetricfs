@@ -290,7 +290,7 @@ TEST_F(PageBufferTest, Clear) {
 TEST_F(PageBufferTest, LargeGap) {
     Pipe loop;
 
-    const size_t n_pages = 16040;
+    const size_t n_pages = 1024;
     std::string data(4096, 'a');
     buffer.write(data.size(), 4096 * (n_pages - 1), &data[0]);
 
@@ -327,7 +327,7 @@ TEST_F(PageBufferTest, LargeGap) {
 TEST_F(PageBufferTest, LargeFile) {
     Pipe loop;
 
-    const size_t n_pages = 16040;
+    const size_t n_pages = 1024;
     std::string data(4096, '\0');
     for (size_t i = 0; i < n_pages; i++) {
         memcpy(&data[0], &i, sizeof(i));
