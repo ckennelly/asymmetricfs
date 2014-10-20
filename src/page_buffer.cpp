@@ -197,7 +197,9 @@ size_t page_buffer::read(size_t n, size_t offset, void *buffer) const {
         assert(it->first <= position + offset);
 
         size_t internal_offset = position + offset - it->first;
-        assert(internal_offset <= it->second.size());
+        if (internal_offset > it->second.size()) {
+            continue;
+        }
 
         size_t internal_length =
             std::min(it->second.size() - internal_offset, n - position);

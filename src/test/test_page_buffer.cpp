@@ -155,6 +155,19 @@ TEST_F(PageBufferTest, Overread) {
     EXPECT_EQ(expected, tmp);
 }
 
+TEST_F(PageBufferTest, OverreadNoOverlap) {
+    std::string tmp(page_size, 'a');
+    buffer.write(tmp.size(), 0, &tmp[0]);
+    ASSERT_EQ(tmp.size(), buffer.size());
+
+    size_t ret;
+    ret = buffer.read(tmp.size(), buffer.size(), &tmp[0]);
+    ASSERT_EQ(0, ret);
+
+    ret = buffer.read(tmp.size(), 2 * buffer.size(), &tmp[0]);
+    ASSERT_EQ(0, ret);
+}
+
 static char mapping(size_t offset) {
     return static_cast<char>(offset);
 }
