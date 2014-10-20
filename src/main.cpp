@@ -225,6 +225,7 @@ int main(int argc, char **argv) {
     }
 
     impl.set_gpg(gpg_path);
+    impl.set_mlock(mlock_value);
     impl.set_read(read);
     impl.set_recipients(recipients);
     if (errors.empty()) {
