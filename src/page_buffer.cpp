@@ -105,10 +105,20 @@ static auto find_block(T& m, size_t key) -> decltype(m.find(key)) {
 
     auto it = m.lower_bound(key);
     if (it != m.end()) {
-        return it;
+        if (it->first <= key) {
+            return it;
+        }
+
+        // As we are going to decrement the pointer, return early if it would
+        // not be safe to do so.  Callers will zero-fill blocks between key and
+        // it->first.
+        if (it == m.begin()) {
+            return it;
+        }
     }
 
     // This operation is safe, as m.size() > 0.
+    assert(it != m.begin());
     --it;
     assert(it->first <= key);
     return it;

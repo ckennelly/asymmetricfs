@@ -1122,6 +1122,63 @@ TEST_P(IOTest, UnlinkInvalidFile) {
     EXPECT_EQ(-ENOENT, fs.unlink("/foo"));
 }
 
+TEST_P(IOTest, LargeFile) {
+    if (GetParam() != IOMode::ReadWrite) {
+        return;
+    }
+
+    fs.set_mlock(memory_lock::none);
+
+    const std::string filename("/test");
+    const size_t n_pages = 16040;
+    // Open a test file in the filesystem, write to it.
+    {
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+
+        std::string data(4096, '\0');
+        for (size_t i = 0; i < n_pages; i++) {
+            memcpy(&data[0], &i, sizeof(i));
+            memcpy(&data[data.size() - sizeof(i)], &i, sizeof(i));
+
+            fs.write(nullptr, data.data(), data.size(), i * 4096, &f.info);
+        }
+
+        ASSERT_EQ(n_pages * data.size(), f.file_size());
+    }
+
+    // Reopen the file and inspect contents.
+    {
+        scoped_file f(fs, filename, O_RDONLY);
+
+        struct chunk {
+            size_t start;
+            size_t length;
+        };
+        const std::vector<chunk> read_patterns{
+            {0, 16384},
+            {16384, 32768},
+            {49152, 65536},
+            {114688, 131072},
+            {245760, 32768},
+        };
+
+        for (auto c : read_patterns) {
+            std::string data = f.read(c.start, c.length);
+            ASSERT_EQ(c.length, data.size());
+
+            size_t base = c.start / 4096;
+            for (size_t offset = 0; offset < c.length; offset += 4096) {
+                size_t start, end;
+                memcpy(&start, &data[offset], sizeof(start));
+                memcpy(&end, &data[offset + 4096 - sizeof(end)], sizeof(end));
+
+                EXPECT_EQ(base + offset / 4096, start);
+                EXPECT_EQ(base + offset / 4096, end);
+            }
+        }
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));

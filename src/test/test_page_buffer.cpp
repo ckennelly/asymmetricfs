@@ -357,6 +357,31 @@ TEST_F(PageBufferTest, LargeFile) {
     EXPECT_FALSE(status);
 }
 
+TEST_F(PageBufferTest, LargeBuffer) {
+    const size_t n_pages = 16040;
+    const size_t pages_per_chunk = 8;
+
+    std::string tmp(page_size * pages_per_chunk, '\0');
+    for (size_t i = 0; i < n_pages; i += pages_per_chunk) {
+        for (size_t j = 0; j < pages_per_chunk; j++) {
+            size_t v = i + j;
+            memcpy(&tmp[page_size * j], &v, sizeof(v));
+        }
+        EXPECT_EQ(page_size * i, buffer.size());
+        buffer.write(tmp.size(), buffer.size(), &tmp[0]);
+    }
+
+    tmp.resize(page_size);
+    for (size_t i = 0; i < n_pages; i++) {
+        size_t ret = buffer.read(tmp.size(), page_size * i, &tmp[0]);
+        EXPECT_EQ(tmp.size(), ret);
+
+        size_t v;
+        memcpy(&v, &tmp[0], sizeof(v));
+        EXPECT_EQ(i, v);
+    }
+}
+
 // The parameter is the number of set bytes.
 class PageBufferSpliceTest : public ::testing::TestWithParam<unsigned>  {
 public:
