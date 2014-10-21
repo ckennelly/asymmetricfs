@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <functional>
 #include <gtest/gtest.h>
 #include "memory_lock.h"
 #include "page_buffer.h"
