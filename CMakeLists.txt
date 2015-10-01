@@ -43,8 +43,8 @@ IF (GPG_PATH)
 ENDIF()
 
 # Google Test
-ADD_SUBDIRECTORY(third_party/googletest)
-INCLUDE_DIRECTORIES(SYSTEM third_party/googletest/include)
+ADD_SUBDIRECTORY(third_party/googletest/googletest)
+INCLUDE_DIRECTORIES(SYSTEM third_party/googletest/googletest/include)
 
 # Build targets
 ENABLE_TESTING()
