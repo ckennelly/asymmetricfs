@@ -1179,6 +1179,122 @@ TEST_P(IOTest, LargeFile) {
     }
 }
 
+TEST_P(IOTest, CorruptedFile) {
+    // This test verifies that a corrupted, encrypted backing file is properly
+    // detected (by raising an error) by asymmetricfs.
+    if (GetParam() != IOMode::ReadWrite) {
+        return;
+    }
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+    // Open a test file in the filesystem, write to it.
+    {
+        scoped_file f(fs, filename, O_CREAT | O_RDWR);
+        f.write(contents);
+
+        // Verify the contents are there before closing.
+        EXPECT_EQ(contents, f.read());
+    }
+
+    // Corrupt the file by flipping the bits in the middle of it.
+    const std::string backing_file = (backing.path() / filename).string();
+    int fd = open(backing_file.c_str(), O_RDWR);
+    ASSERT_LE(0, fd);
+
+    // Reposition to the middle of the file.
+    struct stat buf;
+    ASSERT_EQ(0, fstat(fd, &buf));
+    ASSERT_NE(-1, lseek(fd, buf.st_size / 2, SEEK_SET));
+
+    // Flip bits.
+    {
+        unsigned mask = ~0;
+        unsigned rbuf;
+        ssize_t ret = read(fd, &rbuf, sizeof(rbuf));
+        ASSERT_EQ(sizeof(rbuf), ret);
+
+        rbuf ^= mask;
+
+        ret = write(fd, &rbuf, sizeof(rbuf));
+        ASSERT_EQ(sizeof(rbuf), ret);
+    }
+
+    close(fd);
+
+    // Reopen and verify contents.
+    {
+        scoped_file f(fs, filename, 0);
+
+        std::string buffer;
+        int ret = f.read(&buffer);
+
+        ASSERT_EQ(-EIO, ret);
+    }
+}
+
+TEST_P(IOTest, CorruptedFileMultiplePackets) {
+    // This test verifies that a corrupted, encrypted backing file that is
+    // written across multiple GPG packets is properly detected (by raising an
+    // error) by asymmetricfs.
+    if (GetParam() != IOMode::ReadWrite) {
+        return;
+    }
+
+    fs.set_read(false);
+
+    const std::string filename("/test");
+    const std::string contents("abcdefg");
+    // Open a test file in the filesystem, write to it.
+    {
+        scoped_file f(fs, filename, O_CREAT | O_WRONLY);
+        f.write(contents);
+    }
+
+    // Write a second GPG packet.
+    {
+        scoped_file f(fs, filename, O_APPEND | O_WRONLY);
+        f.write(contents);
+    }
+
+    fs.set_read(true);
+
+    // Corrupt the file by flipping the bits in the middle of it.
+    const std::string backing_file = (backing.path() / filename).string();
+    int fd = open(backing_file.c_str(), O_RDWR);
+    ASSERT_LE(0, fd);
+
+    // Reposition to the end of the third quarter of the file.
+    struct stat buf;
+    ASSERT_EQ(0, fstat(fd, &buf));
+    ASSERT_NE(-1, lseek(fd, 3 * buf.st_size / 4, SEEK_SET));
+
+    // Flip bits.
+    {
+        unsigned mask = ~0;
+        unsigned rbuf;
+        ssize_t ret = read(fd, &rbuf, sizeof(rbuf));
+        ASSERT_EQ(sizeof(rbuf), ret);
+
+        rbuf ^= mask;
+
+        ret = write(fd, &rbuf, sizeof(rbuf));
+        ASSERT_EQ(sizeof(rbuf), ret);
+    }
+
+    close(fd);
+
+    // Reopen and verify contents.
+    {
+        scoped_file f(fs, filename, 0);
+
+        std::string buffer;
+        int ret = f.read(&buffer);
+
+        ASSERT_EQ(-EIO, ret);
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(IOTests, IOTest,
                         ::testing::Values(IOMode::ReadWrite,
                                           IOMode::WriteOnly));
