@@ -245,7 +245,7 @@ void page_buffer::write(size_t n, size_t offset, const void *buffer) {
 
                 // Allocate.
                 it = page_allocations_.emplace(base,
-                    std::move(page_allocation(length, mlock_))).first;
+                    page_allocation(length, mlock_)).first;
             }
         }
 
