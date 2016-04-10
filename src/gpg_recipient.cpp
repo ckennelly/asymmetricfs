@@ -25,13 +25,11 @@
 
 invalid_gpg_recipient::invalid_gpg_recipient(const std::string & r) : r_(r) { }
 
-invalid_gpg_recipient::~invalid_gpg_recipient() throw() { }
-
 const std::string & invalid_gpg_recipient::recipient() const {
     return r_;
 }
 
-const char * invalid_gpg_recipient::what() const throw() {
+const char * invalid_gpg_recipient::what() const noexcept {
     return "Invalid gpg recipient.";
 }
 

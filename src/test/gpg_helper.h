@@ -49,7 +49,6 @@ public:
 class gnupg_generation_error : public gnupg_error {
 public:
     explicit gnupg_generation_error(const std::string& message);
-    ~gnupg_generation_error();
 
     const std::string& what() const;
 private:

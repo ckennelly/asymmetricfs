@@ -35,8 +35,6 @@ gnupg_error::~gnupg_error() {}
 gnupg_generation_error::gnupg_generation_error(const std::string& message) :
     what_(message) {}
 
-gnupg_generation_error::~gnupg_generation_error() {}
-
 const std::string& gnupg_generation_error::what() const {
     return what_;
 }
