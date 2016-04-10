@@ -35,7 +35,7 @@ namespace {
 
 // flush_iov iteratively calls vmsplice to process all of the data specified in
 // the io vector.  It mutates the vector with its progress.
-ssize_t flush_iov(int fd, std::vector<iovec>* ios, int flags) {
+ssize_t flush_iov(int fd, std::vector<iovec>* ios, unsigned int flags) {
     const size_t n_ios = ios->size();
     iovec* v = &(*ios)[0];
 
