@@ -20,7 +20,7 @@ IF(USE11FLAG)
 ELSEIF(USE0xFLAG)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 ELSE()
-    MESSAGE(ERROR "C++0x/C++11 support is required.")
+    MESSAGE(SEND_ERROR "C++0x/C++11 support is required.")
 ENDIF()
 
 # Valgrind support, for annotations.
