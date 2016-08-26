@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstddef>
 #include <boost/program_options.hpp>
 #include <ostream>
 #include "memory_lock.h"
